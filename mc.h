@@ -13,14 +13,16 @@ using namespace std;
 
 class mc {
 private:
-
+    int M;
     int L;
     double T;
     double filling;
+    double a;
     int therm;
     vector<int> state;
     vector<int> sm;
     int sweep;
+    int init_n_max;
 
 public:    
     parser param;
@@ -45,6 +47,7 @@ public:
     }
     void random_clear() {delete rng;}
     double random01() {return rng->d();}
+    int random0N(int N) {return rng->i(N);}
 
     void init();
     void do_update();
