@@ -18,11 +18,16 @@ private:
     double T;
     double filling;
     double a;
+    double U;
+    double t;
+    double epsilon;
     int therm;
     vector<int> state;
     vector<int> sm;
     int sweep;
     int init_n_max;
+    int n;
+    double weights[16];
 
 public:    
     parser param;
