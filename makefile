@@ -24,7 +24,7 @@ ifeq ($(MODE),PT)
 endif
 
 MCLL  = $(MC_CODE_DIR)/load_leveller/trunk
-APPMCLL = $(MC_CODE_DIR)/ising/trunk
+APPMCLL = $(MC_CODE_DIR)/holstein
 
 MPI = /usr/lib64/mpi/gcc/openmpi/
 CC = $(MPI)/bin/mpiCC
