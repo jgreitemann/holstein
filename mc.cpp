@@ -70,6 +70,39 @@ void mc :: do_update() {
                 + left_down;
         }
     }
+    
+    // linked list construction
+    vector<int> vtx();
+    vector<int> link(4*n,0);
+    vector<int> first(L, -1);
+    vector<int> last(L, -1);
+    current_state = state;
+    uint p = 0;
+    for (uint i = 0; p < n; ++i) {
+        if (sm[i] == 0)
+            continue;
+        if (first[sm[i]/N_BOND-1] == -1) {
+            first[sm[i]/N_BOND-1] = 4 * p;
+            last[sm[i]/N_BOND-1] = 4 * p + 3;
+        } else {
+            link[4*p] = last[sm[i]/N_BOND-1];
+            link[last[sm[i]/N_BOND-1]] = 4 * p;
+            last[sm[i]/N_BOND-1] = 4 * p + 3;
+        }
+        if (first[sm[i]/N_BOND] == -1) {
+            first[sm[i]/N_BOND] = 4 * p + 1;
+            last[sm[i]/N_BOND] = 4 * p + 2;
+        } else {
+            link[4*p+1] = last[sm[i]/N_BOND];
+            link[last[sm[i]/N_BOND]] = 4 * p + 1;
+            last[sm[i]/N_BOND] = 4 * p + 2;
+        }
+        ++p;
+    }
+    for (uint s = 0; s < L; ++s) {
+        link[first[s]] = last[s];
+        link[last[s]] = first[s];
+    }
 
     ++sweep;
 }
