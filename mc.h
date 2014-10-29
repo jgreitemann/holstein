@@ -13,21 +13,21 @@ using namespace std;
 
 class mc {
 private:
-    int M;
-    int L;
+    uint M;
+    uint L;
     double T;
     double filling;
     double a;
     double U;
     double t;
     double epsilon;
-    int therm;
+    uint therm;
     vector<int> state;
     vector<int> sm;
-    int sweep;
-    int init_n_max;
-    int loop_term;
-    int n;
+    uint sweep;
+    uint init_n_max;
+    uint loop_term;
+    uint n;
     vector<double> weight;
     vector<int> vtx_type;
     vector<double> prob;

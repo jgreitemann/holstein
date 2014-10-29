@@ -25,7 +25,7 @@ mc :: mc (string dir) {
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);    
     state.resize(L);
-    M = (int)(a * init_n_max);
+    M = (uint)(a * init_n_max);
     sm.resize(M, 0);
 }
 
@@ -42,14 +42,14 @@ void mc :: do_update() {
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(L-1)+1;
-            int vtx = current_state[b-1] << 2 + current_state[b];
+            int vtx = (current_state[b-1]<<2) + current_state[b];
             if (random01() < (L-1)/T*weight[(vtx<<4)+vtx]/(M-n)) {
                 sm[i] = N_BOND*b;
                 n++;
             }
         } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
             int b = sm[i] / N_BOND;
-            int vtx = current_state[b-1] << 2 + current_state[b];
+            int vtx = (current_state[b-1]<<2) + current_state[b];
             if (random01() < (M-n+1)/((L-1)/T*weight[(vtx<<4)+vtx])) {
                 sm[i] = 0;
                 n--;
@@ -57,18 +57,18 @@ void mc :: do_update() {
         } else if (sm[i] % N_BOND == 1) {   // spin up hopping
             int left_up = current_state[sm[i]/N_BOND-1] | 1;
             current_state[sm[i]/N_BOND-1] =
-                current_state[sm[i]/N_BOND-1] | 2
-                + current_state[sm[i]/N_BOND] | 1;
+                (current_state[sm[i]/N_BOND-1] | 2)
+                + (current_state[sm[i]/N_BOND] | 1);
             current_state[sm[i]/N_BOND] =
-                current_state[sm[i]/N_BOND] | 2
+                (current_state[sm[i]/N_BOND] | 2)
                 + left_up;
         } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = current_state[sm[i]/N_BOND-1] | 2;
+            int left_down = (current_state[sm[i]/N_BOND-1] | 2);
             current_state[sm[i]/N_BOND-1] =
-                current_state[sm[i]/N_BOND-1] | 1
-                + current_state[sm[i]/N_BOND] | 2;
+                (current_state[sm[i]/N_BOND-1] | 1)
+                + (current_state[sm[i]/N_BOND] | 2);
             current_state[sm[i]/N_BOND] =
-                current_state[sm[i]/N_BOND] | 1
+                (current_state[sm[i]/N_BOND] | 1)
                 + left_down;
         }
     }
@@ -107,18 +107,18 @@ void mc :: do_update() {
         if (sm[i] % N_BOND == 1) {   // spin up hopping
             int left_up = current_state[sm[i]/N_BOND-1] | 1;
             current_state[sm[i]/N_BOND-1] =
-                current_state[sm[i]/N_BOND-1] | 2
-                + current_state[sm[i]/N_BOND] | 1;
+                (current_state[sm[i]/N_BOND-1] | 2)
+                + (current_state[sm[i]/N_BOND] | 1);
             current_state[sm[i]/N_BOND] =
-                current_state[sm[i]/N_BOND] | 2
+                (current_state[sm[i]/N_BOND] | 2)
                 + left_up;
         } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = current_state[sm[i]/N_BOND-1] | 2;
+            int left_down = (current_state[sm[i]/N_BOND-1] | 2);
             current_state[sm[i]/N_BOND-1] =
-                current_state[sm[i]/N_BOND-1] | 1
-                + current_state[sm[i]/N_BOND] | 2;
+                (current_state[sm[i]/N_BOND-1] | 1)
+                + (current_state[sm[i]/N_BOND] | 2);
             current_state[sm[i]/N_BOND] =
-                current_state[sm[i]/N_BOND] | 1
+                (current_state[sm[i]/N_BOND] | 1)
                 + left_down;
         }
         vtx[p] += (current_state[sm[i]/N_BOND-1] << 4)
@@ -194,20 +194,20 @@ void mc :: init() {
         state[i] = initial_state;
     }
     // place down spins
-    uint thing_to_place = (uint)(filling * L);
+    uint things_to_place = (uint)(filling * L);
     while (things_to_place > 0) {
         int site = random0N(L);
-        if (state[i] / 2 == place_holes) {
-            state[i] ^= 2;
+        if (state[site] / 2 == place_holes) {
+            state[site] ^= 2;
             things_to_place--;
         }
     }
     // place up spins
-    thing_to_place = (uint)(filling * L);
+    things_to_place = (uint)(filling * L);
     while (things_to_place > 0) {
         int site = random0N(L);
-        if (state[i] % 2 == place_holes) {
-            state[i] ^= 1;
+        if (state[site] % 2 == place_holes) {
+            state[site] ^= 1;
             things_to_place--;
         }
     }
@@ -278,7 +278,7 @@ bool mc :: read(string dir)
         d.read(sweep);
         d.read(state);
         d.read(sm);
-        d.read(n)
+        d.read(n);
         d.close();
         return true;
     }
