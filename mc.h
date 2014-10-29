@@ -26,6 +26,7 @@ private:
     vector<int> sm;
     int sweep;
     int init_n_max;
+    int loop_term;
     int n;
     double weights[16];
 

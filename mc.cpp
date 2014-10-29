@@ -1,4 +1,5 @@
 #include "mc.h"
+#include <assert.h>
 
 #define N_BOND 3
 
@@ -21,7 +22,8 @@ mc :: mc (string dir) {
     t = param.value_or_default<double>("HOPPING", 1.);
     epsilon = param.value_or_default<double>("EPSILON", epsilon_min(U,t));
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
-    therm = param.value_or_default<int>("THERMALIZATION", 10000);    
+    therm = param.value_or_default<int>("THERMALIZATION", 10000);
+    loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);    
     state.resize(L);
     M = (int)(a * init_n_max);
     sm.resize(M, 0);
@@ -130,7 +132,36 @@ void mc :: do_update() {
     }
 
     // directed loop construction
-    
+    int j, j0, ent_vtx, exit_leg;
+    bool right_flag;
+    double r;
+    for (uint i = 0; i < 2*M; ++i) {
+        j0 = random0N(8*n);
+        right_flag = j0 | 1;
+        j0 >>= 1;
+        j = j0;
+        for (uint k = 0; ; ++k) {
+            if (k == loop_term*M) {
+                do_update();
+                return;
+            }
+            ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
+            r = random01();
+            for (exit_leg = 0; exit_leg < 4; ++exit_leg)
+                if (r < prob[(exit_leg << 11) + ent_vtx])
+                    break;
+            assert(r < prob[(exit_leg << 11) + ent_vtx]);
+            // flip the vertex:
+            vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
+                        ^ ((2-right_flag) << exit_leg);
+            j = exit_leg - (j%4);   // exit leg position in linked list
+            if (j == j0)    // loop closed (SS02, Fig. 4b)
+                break;
+            j = link[j];
+            if (j == j0)    // loop closed (SS02, Fig. 4a)
+                break;
+        }
+    }
 
     ++sweep;
 }
