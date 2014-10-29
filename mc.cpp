@@ -163,6 +163,15 @@ void mc :: do_update() {
         }
     }
 
+    // mapping back to operator sequence
+    p = 0;
+    for (uint i = 0; p < n; ++i) {
+        if (sm[i] == 0)
+            continue;
+        sm[i] = vtx_type[vtx[p]];
+        ++p;
+    }
+
     ++sweep;
 }
 
