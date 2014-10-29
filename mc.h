@@ -28,7 +28,9 @@ private:
     int init_n_max;
     int loop_term;
     int n;
-    double weights[16];
+    vector<double> weight;
+    vector<int> vtx_type;
+    vector<double> prob;
 
 public:    
     parser param;

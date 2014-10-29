@@ -43,14 +43,14 @@ void mc :: do_update() {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(L-1)+1;
             int vtx = current_state[b-1] << 2 + current_state[b];
-            if (random01() < (L-1)/T*weights[vtx]/(M-n)) {
+            if (random01() < (L-1)/T*weight[(vtx<<4)+vtx]/(M-n)) {
                 sm[i] = N_BOND*b;
                 n++;
             }
         } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
             int b = sm[i] / N_BOND;
             int vtx = current_state[b-1] << 2 + current_state[b];
-            if (random01() < (M-n+1)/((L-1)/T*weights[vtx])) {
+            if (random01() < (M-n+1)/((L-1)/T*weight[(vtx<<4)+vtx])) {
                 sm[i] = 0;
                 n--;
             }
@@ -211,12 +211,39 @@ void mc :: init() {
             things_to_place--;
         }
     }
-    
-    // calculate vertex weights
-    for (int i = 0; i < 16; i++) {
-        weights[i] = epsilon + U/4 * (i|1 + (i|2)>>1 + (i|4)>>2 + (i|8)>>3)
-                     - U/2 * (((i|3) == 3) + ((i|12) == 12));
+
+    // parse vertex weights
+    weight.resize(256, 0);
+    vtx_type.resize(256, 0);
+    int vtx, j, i;
+    double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
+    ifstream file1("vertex_types.txt");
+    while (file1 >> vtx >> j >> i) {
+        weight[vtx] = W[i];
+        vtx_type[vtx] = j;
     }
+    file1.close();
+
+    // calculate transition probabilities
+    prob.resize(8192, 0);
+    double b1 = (t < -U/4) ? (-U/4-t) : 0;
+    double b2 = (t < +U/4) ? (+U/4-t) : 0;
+    double a[] = {
+                    b1,
+                    b2,
+                    U/8+epsilon-t/2-b1/2-b2/2,
+                    -U/8+t/2-b1/2+b2/2,
+                    U/8+t/2+b1/2-b2/2,
+                    3*U/8+epsilon-t/2-b1/2-b2/2,
+                    -U/8+t/2-b1/2+b2/2,
+                    U/8+t/2+b1/2-b2/2,
+                    t
+                 };
+    ifstream file2("assignments.txt");
+    while (file2 >> vtx >> j) {
+        prob[vtx] = a[j] / weight[vtx | 255];
+    }
+    file2.close();
 
     n = 0;
     sweep=0;
