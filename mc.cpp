@@ -39,36 +39,36 @@ void mc :: do_update() {
     vector<int> current_state = state;
 
     // diagonal update
-    for (uint p = 0; p < M; ++p) {
-        if (sm[p] == 0) {   // identity operator
+    for (uint i = 0; i < M; ++i) {
+        if (sm[i] == 0) {   // identity operator
             int b = random0N(L-1)+1;
             int vtx = current_state[b-1] << 2 + current_state[b];
             if (random01() < (L-1)/T*weights[vtx]/(M-n)) {
-                sm[p] = N_BOND*b;
+                sm[i] = N_BOND*b;
                 n++;
             }
-        } else if (sm[p] % N_BOND == 0) {   // diagonal Hubbard U
-            int b = sm[p] / N_BOND;
+        } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
+            int b = sm[i] / N_BOND;
             int vtx = current_state[b-1] << 2 + current_state[b];
             if (random01() < (M-n+1)/((L-1)/T*weights[vtx])) {
-                sm[p] = 0;
+                sm[i] = 0;
                 n--;
             }
-        } else if (sm[p] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[sm[p]/N_BOND-1] | 1;
-            current_state[sm[p]/N_BOND-1] =
-                current_state[sm[p]/N_BOND-1] | 2
-                + current_state[sm[p]/N_BOND] | 1;
-            current_state[sm[p]/N_BOND] =
-                current_state[sm[p]/N_BOND] | 2
+        } else if (sm[i] % N_BOND == 1) {   // spin up hopping
+            int left_up = current_state[sm[i]/N_BOND-1] | 1;
+            current_state[sm[i]/N_BOND-1] =
+                current_state[sm[i]/N_BOND-1] | 2
+                + current_state[sm[i]/N_BOND] | 1;
+            current_state[sm[i]/N_BOND] =
+                current_state[sm[i]/N_BOND] | 2
                 + left_up;
-        } else if (sm[p] % N_BOND == 2) {   // spin down hopping
-            int left_down = current_state[sm[p]/N_BOND-1] | 2;
-            current_state[sm[p]/N_BOND-1] =
-                current_state[sm[p]/N_BOND-1] | 1
-                + current_state[sm[p]/N_BOND] | 2;
-            current_state[sm[p]/N_BOND] =
-                current_state[sm[p]/N_BOND] | 1
+        } else if (sm[i] % N_BOND == 2) {   // spin down hopping
+            int left_down = current_state[sm[i]/N_BOND-1] | 2;
+            current_state[sm[i]/N_BOND-1] =
+                current_state[sm[i]/N_BOND-1] | 1
+                + current_state[sm[i]/N_BOND] | 2;
+            current_state[sm[i]/N_BOND] =
+                current_state[sm[i]/N_BOND] | 1
                 + left_down;
         }
     }
