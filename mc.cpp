@@ -37,9 +37,9 @@ mc :: mc (string dir) {
     // parse vertex weights
     int vtx, j, i;
     double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
-    ifstream file1("vertex_types.txt");
+    ifstream file1("../vertex_types.txt");
     while (file1 >> vtx >> j >> i) {
-        weight[vtx] = W[i];
+        weight[vtx] = W[i-1];
         vtx_type[vtx] = j;
     }
     file1.close();
@@ -58,7 +58,7 @@ mc :: mc (string dir) {
                     U/8+t/2+b1/2-b2/2,
                     t
                  };
-    ifstream file2("assignments.txt");
+    ifstream file2("../assignments.txt");
     while (file2 >> vtx >> j) {
         prob[vtx] = a[j] / weight[vtx | 255];
     }
@@ -82,7 +82,7 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
-    vector<int> current_state = state;
+    vector<int> current_state(state);
 
     // diagonal update
     for (uint i = 0; i < M; ++i) {

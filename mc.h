@@ -11,6 +11,11 @@
 
 using namespace std;
 
+#ifndef NDEBUG
+template class vector<int>;
+template class vector<double>;
+#endif
+
 class mc {
 private:
     uint M;
