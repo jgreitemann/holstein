@@ -88,15 +88,17 @@ void mc :: do_update() {
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(L-1)+1;
-            int vtx = (current_state[b-1]<<2) + current_state[b];
-            if (random01() < (L-1)/T*weight[(vtx<<4)+vtx]/(M-n)) {
+            int vtx = current_state[b-1] + (current_state[b]<<2)
+                      + (current_state[b-1]<<6) + (current_state[b]<<4);
+            if (random01() < (L-1)/T*weight[vtx]/(M-n)) {
                 sm[i] = N_BOND*b;
                 n++;
             }
         } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
             int b = sm[i] / N_BOND;
-            int vtx = (current_state[b-1]<<2) + current_state[b];
-            if (random01() < (M-n+1)/((L-1)/T*weight[(vtx<<4)+vtx])) {
+            int vtx = current_state[b-1] + (current_state[b]<<2)
+                      + (current_state[b-1]<<6) + (current_state[b]<<4);
+            if (random01() < (M-n+1)/((L-1)/T*weight[vtx])) {
                 sm[i] = 0;
                 n--;
             }
