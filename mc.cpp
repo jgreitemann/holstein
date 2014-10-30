@@ -245,6 +245,13 @@ void mc :: init() {
     }
     file2.close();
 
+    // cumulate transition probabilities
+    for (i = 0; i < 512; ++i) {
+        prob[(1<<11)+vtx] += prob[vtx];
+        prob[(2<<11)+vtx] += prob[(1<<11)+vtx];
+        prob[(3<<11)+vtx] += prob[(2<<11)+vtx];
+    }
+
     n = 0;
     sweep=0;
     // add observables
