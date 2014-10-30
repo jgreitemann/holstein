@@ -202,7 +202,7 @@ void mc :: do_update() {
             // flip the vertex:
             vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
                         ^ ((2-right_flag) << 2*exit_leg);
-            j = exit_leg - (j%4);   // exit leg position in linked list
+            j += exit_leg - (j%4);   // exit leg position in linked list
             if (j == j0)    // loop closed (SS02, Fig. 4b)
                 break;
             j = link[j];
