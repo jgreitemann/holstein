@@ -65,10 +65,10 @@ mc :: mc (string dir) {
     file2.close();
 
     // cumulate transition probabilities
-    for (i = 0; i < 512; ++i) {
-        prob[(1<<11)+vtx] += prob[vtx];
-        prob[(2<<11)+vtx] += prob[(1<<11)+vtx];
-        prob[(3<<11)+vtx] += prob[(2<<11)+vtx];
+    for (i = 0; i < 2048; ++i) {
+        prob[(1<<11)+i] += prob[i];
+        prob[(2<<11)+i] += prob[(1<<11)+i];
+        prob[(3<<11)+i] += prob[(2<<11)+i];
     }
 }
 
