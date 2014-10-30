@@ -169,8 +169,8 @@ void mc :: do_update() {
                 (current_state[sm[i]/N_BOND] | 1)
                 + left_down;
         }
-        vtx[p] += (current_state[sm[i]/N_BOND-1] << 4)
-                  + (current_state[sm[i]/N_BOND] << 6);
+        vtx[p] += (current_state[sm[i]/N_BOND] << 4)
+                  + (current_state[sm[i]/N_BOND-1] << 6);
 
         ++p;
     }
