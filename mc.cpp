@@ -13,6 +13,7 @@ double epsilon_min(double U, double t) {
 }
 
 mc :: mc (string dir) {
+    // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
     T = param.value_or_default<double>("T", 1.);
@@ -23,10 +24,52 @@ mc :: mc (string dir) {
     epsilon = param.value_or_default<double>("EPSILON", epsilon_min(U,t));
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
-    loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);    
-    state.resize(L);
+    loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     M = (uint)(a * init_n_max);
+    
+    // resize vectors
+    state.resize(L);
     sm.resize(M, 0);
+    weight.resize(256, 0);
+    vtx_type.resize(256, 0);
+    prob.resize(8192, 0);
+
+    // parse vertex weights
+    int vtx, j, i;
+    double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
+    ifstream file1("vertex_types.txt");
+    while (file1 >> vtx >> j >> i) {
+        weight[vtx] = W[i];
+        vtx_type[vtx] = j;
+    }
+    file1.close();
+
+    // calculate transition probabilities
+    double b1 = (t < -U/4) ? (-U/4-t) : 0;
+    double b2 = (t < +U/4) ? (+U/4-t) : 0;
+    double a[] = {
+                    b1,
+                    b2,
+                    U/8+epsilon-t/2-b1/2-b2/2,
+                    -U/8+t/2-b1/2+b2/2,
+                    U/8+t/2+b1/2-b2/2,
+                    3*U/8+epsilon-t/2-b1/2-b2/2,
+                    -U/8+t/2-b1/2+b2/2,
+                    U/8+t/2+b1/2-b2/2,
+                    t
+                 };
+    ifstream file2("assignments.txt");
+    while (file2 >> vtx >> j) {
+        prob[vtx] = a[j] / weight[vtx | 255];
+    }
+    file2.close();
+
+    // cumulate transition probabilities
+    for (i = 0; i < 512; ++i) {
+        prob[(1<<11)+vtx] += prob[vtx];
+        prob[(2<<11)+vtx] += prob[(1<<11)+vtx];
+        prob[(3<<11)+vtx] += prob[(2<<11)+vtx];
+    }
 }
 
 mc :: ~mc() {
@@ -213,46 +256,6 @@ void mc :: init() {
             state[site] ^= 1;
             things_to_place--;
         }
-    }
-
-    // parse vertex weights
-    weight.resize(256, 0);
-    vtx_type.resize(256, 0);
-    int vtx, j, i;
-    double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
-    ifstream file1("vertex_types.txt");
-    while (file1 >> vtx >> j >> i) {
-        weight[vtx] = W[i];
-        vtx_type[vtx] = j;
-    }
-    file1.close();
-
-    // calculate transition probabilities
-    prob.resize(8192, 0);
-    double b1 = (t < -U/4) ? (-U/4-t) : 0;
-    double b2 = (t < +U/4) ? (+U/4-t) : 0;
-    double a[] = {
-                    b1,
-                    b2,
-                    U/8+epsilon-t/2-b1/2-b2/2,
-                    -U/8+t/2-b1/2+b2/2,
-                    U/8+t/2+b1/2-b2/2,
-                    3*U/8+epsilon-t/2-b1/2-b2/2,
-                    -U/8+t/2-b1/2+b2/2,
-                    U/8+t/2+b1/2-b2/2,
-                    t
-                 };
-    ifstream file2("assignments.txt");
-    while (file2 >> vtx >> j) {
-        prob[vtx] = a[j] / weight[vtx | 255];
-    }
-    file2.close();
-
-    // cumulate transition probabilities
-    for (i = 0; i < 512; ++i) {
-        prob[(1<<11)+vtx] += prob[vtx];
-        prob[(2<<11)+vtx] += prob[(1<<11)+vtx];
-        prob[(3<<11)+vtx] += prob[(2<<11)+vtx];
     }
 
     n = 0;
