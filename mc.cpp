@@ -33,6 +33,9 @@ mc :: ~mc() {
     random_clear();
     state.clear();
     sm.clear();
+    weight.clear();
+    vtx_type.clear();
+    prob.clear();
 }
 
 void mc :: do_update() {
