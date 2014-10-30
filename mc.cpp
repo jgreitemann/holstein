@@ -60,7 +60,7 @@ mc :: mc (string dir) {
                  };
     ifstream file2("../assignments.txt");
     while (file2 >> vtx >> j) {
-        prob[vtx] = a[j] / weight[vtx | 255];
+        prob[vtx] = a[j] / weight[vtx & 255];
     }
     file2.close();
 
@@ -103,20 +103,20 @@ void mc :: do_update() {
                 n--;
             }
         } else if (sm[i] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[sm[i]/N_BOND-1] | 1;
+            int left_up = current_state[sm[i]/N_BOND-1] & 1;
             current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] | 2)
-                + (current_state[sm[i]/N_BOND] | 1);
+                (current_state[sm[i]/N_BOND-1] & 2)
+                + (current_state[sm[i]/N_BOND] & 1);
             current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] | 2)
+                (current_state[sm[i]/N_BOND] & 2)
                 + left_up;
         } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = (current_state[sm[i]/N_BOND-1] | 2);
+            int left_down = (current_state[sm[i]/N_BOND-1] & 2);
             current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] | 1)
-                + (current_state[sm[i]/N_BOND] | 2);
+                (current_state[sm[i]/N_BOND-1] & 1)
+                + (current_state[sm[i]/N_BOND] & 2);
             current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] | 1)
+                (current_state[sm[i]/N_BOND] & 1)
                 + left_down;
         }
     }
@@ -153,20 +153,20 @@ void mc :: do_update() {
         vtx[p] = current_state[sm[i]/N_BOND-1]
                  + (current_state[sm[i]/N_BOND] << 2);
         if (sm[i] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[sm[i]/N_BOND-1] | 1;
+            int left_up = current_state[sm[i]/N_BOND-1] & 1;
             current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] | 2)
-                + (current_state[sm[i]/N_BOND] | 1);
+                (current_state[sm[i]/N_BOND-1] & 2)
+                + (current_state[sm[i]/N_BOND] & 1);
             current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] | 2)
+                (current_state[sm[i]/N_BOND] & 2)
                 + left_up;
         } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = (current_state[sm[i]/N_BOND-1] | 2);
+            int left_down = (current_state[sm[i]/N_BOND-1] & 2);
             current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] | 1)
-                + (current_state[sm[i]/N_BOND] | 2);
+                (current_state[sm[i]/N_BOND-1] & 1)
+                + (current_state[sm[i]/N_BOND] & 2);
             current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] | 1)
+                (current_state[sm[i]/N_BOND] & 1)
                 + left_down;
         }
         vtx[p] += (current_state[sm[i]/N_BOND] << 4)
@@ -185,7 +185,7 @@ void mc :: do_update() {
     double r;
     for (uint i = 0; i < 2*M; ++i) {
         j0 = random0N(8*n);
-        right_flag = j0 | 1;
+        right_flag = j0 & 1;
         j0 >>= 1;
         j = j0;
         for (uint k = 0; ; ++k) {
