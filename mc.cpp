@@ -201,7 +201,7 @@ void mc :: do_update() {
             assert(r < prob[(exit_leg << 11) + ent_vtx]);
             // flip the vertex:
             vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
-                        ^ ((2-right_flag) << exit_leg);
+                        ^ ((2-right_flag) << 2*exit_leg);
             j = exit_leg - (j%4);   // exit leg position in linked list
             if (j == j0)    // loop closed (SS02, Fig. 4b)
                 break;
