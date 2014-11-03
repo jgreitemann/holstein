@@ -25,6 +25,7 @@ mc :: mc (string dir) {
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
+    N_loop = param.value_or_default<double>("N_LOOP", 2.0);
     M = (uint)(a * init_n_max);
     
     // resize vectors
@@ -183,7 +184,7 @@ void mc :: do_update() {
     int j, j0, ent_vtx, exit_leg;
     bool right_flag;
     double r;
-    for (uint i = 0; i < 2*M; ++i) {
+    for (uint i = 0; i < N_loop*M; ++i) {
         j0 = random0N(8*n);
         right_flag = j0 & 1;
         j0 >>= 1;

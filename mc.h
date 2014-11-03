@@ -33,6 +33,7 @@ private:
     uint init_n_max;
     uint loop_term;
     uint n;
+    double N_loop;
     vector<double> weight;
     vector<int> vtx_type;
     vector<double> prob;
