@@ -220,6 +220,17 @@ void mc :: do_update() {
         ++p;
     }
 
+    // updating the state, flipping states randomly on sites not affected
+    // by the bond operators
+    for (uint s = 0; s < L; ++s) {
+        if (first[s] == -1) {
+            uint leg = first[4] % 4;
+            state[s] = (vtx[first[s]/4] & (3<<(2*leg))) >> (2*leg);
+        } else {
+            state[s] = random0N(4);
+        }
+    }
+
     ++sweep;
 }
 
