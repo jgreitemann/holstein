@@ -121,7 +121,14 @@ void mc :: do_update() {
                 + left_down;
         }
     }
-    
+
+    // adjust M during thermalization
+    if (!is_thermalized() && a*n > M) {
+        M = a*n;
+    }
+    assert(n <= M); // You might need to increase "a" or the thermalization
+                    // time if this assertion fails.
+
     // linked list construction
     vector<int> vtx(n, -1);
     vector<int> link(4*n, 0);
