@@ -216,7 +216,7 @@ void mc :: do_update() {
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == 0)
             continue;
-        sm[i] = vtx_type[vtx[p]];
+        sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
         ++p;
     }
 
