@@ -1,5 +1,4 @@
 #include "mc.h"
-#include <assert.h>
 
 #define N_BOND 3
 
@@ -205,7 +204,7 @@ void mc :: do_update() {
                 do_update();
                 return;
             }
-            assert(j/4 < n);
+            assert(j/4 < (int)n);
             ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
             r = random01();
             for (exit_leg = 0; exit_leg < 4; ++exit_leg)

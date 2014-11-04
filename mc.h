@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <assert.h>
 #include "measurements.h"
 #include "random.h"
 #include "parser.h"
@@ -61,7 +62,10 @@ public:
     }
     void random_clear() {delete rng;}
     double random01() {return rng->d();}
-    int random0N(int N) {return rng->i(N);}
+    int random0N(int N) {
+        assert(N > 0);
+        return (int)(N*rng->d());
+    }
 
     void init();
     void do_update();
