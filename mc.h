@@ -42,12 +42,15 @@ private:
 public:    
     parser param;
     void param_init(string dir) {param.read_file(dir);}
-    randomnumbergenerator * rng;
+    randomnumbergenerator *rng;
     void random_init() {
-        if (param.defined("SEED"))
-            rng = new randomnumbergenerator(param.value_of<luint>("SEED"));
-        else
+        if (param.defined("SEED")) {
+            rng = new randomnumbergenerator(
+                      param.value_of<luint>("SEED")
+                  );
+        } else {
             rng = new randomnumbergenerator();
+        }
     }
     void random_write(odump& d) {rng->write(d);}
     void seed_write(string fn) {
@@ -73,10 +76,10 @@ public:
     void write(string);
     bool read(string);
     void write_output(string);
-    
+
     bool is_thermalized();
     measurements measure;    
-    
+
     mc(string);
     ~mc();
 };

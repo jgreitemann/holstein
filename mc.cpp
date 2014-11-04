@@ -20,13 +20,14 @@ mc :: mc (string dir) {
     a = param.value_or_default<double>("A", 1.3);
     U = param.value_or_default<double>("U", 1.);
     t = param.value_or_default<double>("HOPPING", 1.);
-    epsilon = param.value_or_default<double>("EPSILON", epsilon_min(U,t));
+    epsilon = param.value_or_default<double>("EPSILON",
+                                             epsilon_min(U,t));
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     N_loop = param.value_or_default<double>("N_LOOP", 2.0);
     M = (uint)(a * init_n_max);
-    
+
     // resize vectors
     state.resize(L);
     sm.resize(M, 0);
@@ -126,8 +127,8 @@ void mc :: do_update() {
         M = a*n;
         sm.resize(M, 0);
     }
-    assert(n <= M); // You might need to increase "a" or the thermalization
-                    // time if this assertion fails.
+    assert(n <= M); // You might need to increase "a" or the
+                    // thermalization time if this assertion fails.
 
     if (n > 0) {
         // linked list construction
@@ -215,7 +216,7 @@ void mc :: do_update() {
                 // flip the vertex:
                 vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
                             ^ ((2-right_flag) << 2*exit_leg);
-                j += exit_leg - (j%4);   // exit leg position in linked list
+                j += exit_leg-(j%4); // exit leg position in linked list
                 if (j == j0)    // loop closed (SS02, Fig. 4b)
                     break;
                 j = link[j];
@@ -235,8 +236,8 @@ void mc :: do_update() {
             ++p;
         }
 
-        // updating the state, flipping states randomly on sites not affected
-        // by the bond operators
+        // updating the state, flipping states randomly on sites not
+        // affected by the bond operators
         for (uint s = 0; s < L; ++s) {
             if (first[s] == -1) {
                 state[s] = random0N(4);
@@ -247,7 +248,7 @@ void mc :: do_update() {
         }
         vtx.clear();
         first.clear();
-    } else {
+    } else { // empty operator sequence
         for (uint s = 0; s < L; ++s) {
             state[s] = random0N(4);
         }
@@ -303,8 +304,7 @@ void mc :: init() {
     measure.add_observable("Energy");
 }
 
-void mc :: write(string dir)
-{
+void mc :: write(string dir) {
     odump d(dir + "dump");
     random_write(d);
     d.write(sweep);
@@ -320,13 +320,11 @@ void mc :: write(string dir)
     f.close();
 }
 
-
-bool mc :: read(string dir)
-{
+bool mc :: read(string dir) {
     idump d(dir+"dump");
-    if (!d)
+    if (!d) {
         return false;
-    else {
+    } else {
         random_read(d);
         d.read(sweep);
         d.read(state);
@@ -337,8 +335,7 @@ bool mc :: read(string dir)
     }
 }
 
-void mc :: write_output(string dir)
-{
+void mc :: write_output(string dir) {
     // add evalables
     ofstream f;
     f.open(dir.c_str());
@@ -346,4 +343,3 @@ void mc :: write_output(string dir)
     param.get_all(f);
     measure.get_statistics(f);
 }
-
