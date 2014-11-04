@@ -125,6 +125,7 @@ void mc :: do_update() {
     // adjust M during thermalization
     if (!is_thermalized() && a*n > M) {
         M = a*n;
+        sm.resize(M, 0);
     }
     assert(n <= M); // You might need to increase "a" or the thermalization
                     // time if this assertion fails.
@@ -183,9 +184,12 @@ void mc :: do_update() {
         ++p;
     }
     for (uint s = 0; s < L; ++s) {
-        link[first[s]] = last[s];
-        link[last[s]] = first[s];
+        if (last[s] != -1) {
+            link[first[s]] = last[s];
+            link[last[s]] = first[s];
+        }
     }
+    current_state.clear();
 
     // directed loop construction
     int j, j0, ent_vtx, exit_leg;
@@ -201,6 +205,7 @@ void mc :: do_update() {
                 do_update();
                 return;
             }
+            assert(j/4 < n);
             ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
             r = random01();
             for (exit_leg = 0; exit_leg < 4; ++exit_leg)
@@ -218,6 +223,8 @@ void mc :: do_update() {
                 break;
         }
     }
+    link.clear();
+    last.clear();
 
     // mapping back to operator sequence
     p = 0;
@@ -238,6 +245,8 @@ void mc :: do_update() {
             state[s] = (vtx[first[s]/4] & (3<<(2*leg))) >> (2*leg);
         }
     }
+    vtx.clear();
+    first.clear();
 
     ++sweep;
 }
