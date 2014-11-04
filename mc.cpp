@@ -247,13 +247,20 @@ void mc :: do_update() {
         }
         vtx.clear();
         first.clear();
+    } else {
+        for (uint s = 0; s < L; ++s) {
+            state[s] = random0N(4);
+        }
     }
 
     ++sweep;
 }
 
 void mc :: do_measurement() {
+    double energy = -T * n;
+
     // add data to measurement
+    measure.add("Energy", energy);
 }
 
 
@@ -291,7 +298,9 @@ void mc :: init() {
 
     n = 0;
     sweep=0;
+
     // add observables
+    measure.add_observable("Energy");
 }
 
 void mc :: write(string dir)
