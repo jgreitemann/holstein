@@ -129,123 +129,125 @@ void mc :: do_update() {
     assert(n <= M); // You might need to increase "a" or the thermalization
                     // time if this assertion fails.
 
-    // linked list construction
-    vector<int> vtx(n, -1);
-    vector<int> link(4*n, 0);
-    vector<int> first(L, -1);
-    vector<int> last(L, -1);
-    current_state = state;
-    uint p = 0;
-    for (uint i = 0; p < n; ++i) {
-        if (sm[i] == 0)
-            continue;
-        // establish links
-        if (first[sm[i]/N_BOND-1] == -1) {
-            first[sm[i]/N_BOND-1] = 4 * p;
-            last[sm[i]/N_BOND-1] = 4 * p + 3;
-        } else {
-            link[4*p] = last[sm[i]/N_BOND-1];
-            link[last[sm[i]/N_BOND-1]] = 4 * p;
-            last[sm[i]/N_BOND-1] = 4 * p + 3;
-        }
-        if (first[sm[i]/N_BOND] == -1) {
-            first[sm[i]/N_BOND] = 4 * p + 1;
-            last[sm[i]/N_BOND] = 4 * p + 2;
-        } else {
-            link[4*p+1] = last[sm[i]/N_BOND];
-            link[last[sm[i]/N_BOND]] = 4 * p + 1;
-            last[sm[i]/N_BOND] = 4 * p + 2;
-        }
-
-        // determine vertex type
-        vtx[p] = current_state[sm[i]/N_BOND-1]
-                 + (current_state[sm[i]/N_BOND] << 2);
-        if (sm[i] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[sm[i]/N_BOND-1] & 1;
-            current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] & 2)
-                + (current_state[sm[i]/N_BOND] & 1);
-            current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] & 2)
-                + left_up;
-        } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = (current_state[sm[i]/N_BOND-1] & 2);
-            current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] & 1)
-                + (current_state[sm[i]/N_BOND] & 2);
-            current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] & 1)
-                + left_down;
-        }
-        vtx[p] += (current_state[sm[i]/N_BOND] << 4)
-                  + (current_state[sm[i]/N_BOND-1] << 6);
-
-        ++p;
-    }
-    for (uint s = 0; s < L; ++s) {
-        if (last[s] != -1) {
-            link[first[s]] = last[s];
-            link[last[s]] = first[s];
-        }
-    }
-    current_state.clear();
-
-    // directed loop construction
-    int j, j0, ent_vtx, exit_leg;
-    bool right_flag;
-    double r;
-    for (uint i = 0; i < N_loop*M; ++i) {
-        j0 = random0N(8*n);
-        right_flag = j0 & 1;
-        j0 >>= 1;
-        j = j0;
-        for (uint k = 0; ; ++k) {
-            if (k == loop_term*M) {
-                do_update();
-                return;
+    if (n > 0) {
+        // linked list construction
+        vector<int> vtx(n, -1);
+        vector<int> link(4*n, 0);
+        vector<int> first(L, -1);
+        vector<int> last(L, -1);
+        current_state = state;
+        uint p = 0;
+        for (uint i = 0; p < n; ++i) {
+            if (sm[i] == 0)
+                continue;
+            // establish links
+            if (first[sm[i]/N_BOND-1] == -1) {
+                first[sm[i]/N_BOND-1] = 4 * p;
+                last[sm[i]/N_BOND-1] = 4 * p + 3;
+            } else {
+                link[4*p] = last[sm[i]/N_BOND-1];
+                link[last[sm[i]/N_BOND-1]] = 4 * p;
+                last[sm[i]/N_BOND-1] = 4 * p + 3;
             }
-            assert(j/4 < (int)n);
-            ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
-            r = random01();
-            for (exit_leg = 0; exit_leg < 4; ++exit_leg)
-                if (r < prob[(exit_leg << 11) + ent_vtx])
+            if (first[sm[i]/N_BOND] == -1) {
+                first[sm[i]/N_BOND] = 4 * p + 1;
+                last[sm[i]/N_BOND] = 4 * p + 2;
+            } else {
+                link[4*p+1] = last[sm[i]/N_BOND];
+                link[last[sm[i]/N_BOND]] = 4 * p + 1;
+                last[sm[i]/N_BOND] = 4 * p + 2;
+            }
+
+            // determine vertex type
+            vtx[p] = current_state[sm[i]/N_BOND-1]
+                     + (current_state[sm[i]/N_BOND] << 2);
+            if (sm[i] % N_BOND == 1) {   // spin up hopping
+                int left_up = current_state[sm[i]/N_BOND-1] & 1;
+                current_state[sm[i]/N_BOND-1] =
+                    (current_state[sm[i]/N_BOND-1] & 2)
+                    + (current_state[sm[i]/N_BOND] & 1);
+                current_state[sm[i]/N_BOND] =
+                    (current_state[sm[i]/N_BOND] & 2)
+                    + left_up;
+            } else if (sm[i] % N_BOND == 2) {   // spin down hopping
+                int left_down = (current_state[sm[i]/N_BOND-1] & 2);
+                current_state[sm[i]/N_BOND-1] =
+                    (current_state[sm[i]/N_BOND-1] & 1)
+                    + (current_state[sm[i]/N_BOND] & 2);
+                current_state[sm[i]/N_BOND] =
+                    (current_state[sm[i]/N_BOND] & 1)
+                    + left_down;
+            }
+            vtx[p] += (current_state[sm[i]/N_BOND] << 4)
+                      + (current_state[sm[i]/N_BOND-1] << 6);
+
+            ++p;
+        }
+        for (uint s = 0; s < L; ++s) {
+            if (last[s] != -1) {
+                link[first[s]] = last[s];
+                link[last[s]] = first[s];
+            }
+        }
+        current_state.clear();
+
+        // directed loop construction
+        int j, j0, ent_vtx, exit_leg;
+        bool right_flag;
+        double r;
+        for (uint i = 0; i < N_loop*M; ++i) {
+            j0 = random0N(8*n);
+            right_flag = j0 & 1;
+            j0 >>= 1;
+            j = j0;
+            for (uint k = 0; ; ++k) {
+                if (k == loop_term*M) {
+                    do_update();
+                    return;
+                }
+                assert(j/4 < (int)n);
+                ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
+                r = random01();
+                for (exit_leg = 0; exit_leg < 4; ++exit_leg)
+                    if (r < prob[(exit_leg << 11) + ent_vtx])
+                        break;
+                assert(r < prob[(exit_leg << 11) + ent_vtx]);
+                // flip the vertex:
+                vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
+                            ^ ((2-right_flag) << 2*exit_leg);
+                j += exit_leg - (j%4);   // exit leg position in linked list
+                if (j == j0)    // loop closed (SS02, Fig. 4b)
                     break;
-            assert(r < prob[(exit_leg << 11) + ent_vtx]);
-            // flip the vertex:
-            vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
-                        ^ ((2-right_flag) << 2*exit_leg);
-            j += exit_leg - (j%4);   // exit leg position in linked list
-            if (j == j0)    // loop closed (SS02, Fig. 4b)
-                break;
-            j = link[j];
-            if (j == j0)    // loop closed (SS02, Fig. 4a)
-                break;
+                j = link[j];
+                if (j == j0)    // loop closed (SS02, Fig. 4a)
+                    break;
+            }
         }
-    }
-    link.clear();
-    last.clear();
+        link.clear();
+        last.clear();
 
-    // mapping back to operator sequence
-    p = 0;
-    for (uint i = 0; p < n; ++i) {
-        if (sm[i] == 0)
-            continue;
-        sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
-        ++p;
-    }
-
-    // updating the state, flipping states randomly on sites not affected
-    // by the bond operators
-    for (uint s = 0; s < L; ++s) {
-        if (first[s] == -1) {
-            state[s] = random0N(4);
-        } else {
-            uint leg = first[s] % 4;
-            state[s] = (vtx[first[s]/4] & (3<<(2*leg))) >> (2*leg);
+        // mapping back to operator sequence
+        p = 0;
+        for (uint i = 0; p < n; ++i) {
+            if (sm[i] == 0)
+                continue;
+            sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
+            ++p;
         }
+
+        // updating the state, flipping states randomly on sites not affected
+        // by the bond operators
+        for (uint s = 0; s < L; ++s) {
+            if (first[s] == -1) {
+                state[s] = random0N(4);
+            } else {
+                uint leg = first[s] % 4;
+                state[s] = (vtx[first[s]/4] & (3<<(2*leg))) >> (2*leg);
+            }
+        }
+        vtx.clear();
+        first.clear();
     }
-    vtx.clear();
-    first.clear();
 
     ++sweep;
 }
