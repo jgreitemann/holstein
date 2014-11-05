@@ -1,6 +1,9 @@
 #include "mc.h"
 
-#define N_BOND 3
+#define N_BOND 3                // number of bond operators
+#define NB (L)                  // number of bonds
+#define LEFT_SITE(b) (b-1)      // lattice -
+#define RIGHT_SITE(b) ((b)%L)   //           geometry
 
 double epsilon_min(double U, double t) {
     if (t > abs(U)/4)   // region I
@@ -88,36 +91,40 @@ void mc :: do_update() {
     // diagonal update
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
-            int b = random0N(L-1)+1;
-            int vtx = current_state[b-1] + (current_state[b]<<2)
-                      + (current_state[b-1]<<6) + (current_state[b]<<4);
-            if (random01() < (L-1)/T*weight[vtx]/(M-n)) {
+            int b = random0N(NB)+1;
+            int vtx = current_state[LEFT_SITE(b)]
+                      + (current_state[RIGHT_SITE(b)]<<2)
+                      + (current_state[LEFT_SITE(b)]<<6)
+                      + (current_state[RIGHT_SITE(b)]<<4);
+            if (random01() < NB/T*weight[vtx]/(M-n)) {
                 sm[i] = N_BOND*b;
                 n++;
             }
         } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
             int b = sm[i] / N_BOND;
-            int vtx = current_state[b-1] + (current_state[b]<<2)
-                      + (current_state[b-1]<<6) + (current_state[b]<<4);
-            if (random01() < (M-n+1)/((L-1)/T*weight[vtx])) {
+            int vtx = current_state[LEFT_SITE(b)]
+                      + (current_state[RIGHT_SITE(b)]<<2)
+                      + (current_state[LEFT_SITE(b)]<<6)
+                      + (current_state[RIGHT_SITE(b)]<<4);
+            if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
                 sm[i] = 0;
                 n--;
             }
         } else if (sm[i] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[sm[i]/N_BOND-1] & 1;
-            current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] & 2)
-                + (current_state[sm[i]/N_BOND] & 1);
-            current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] & 2)
+            int left_up = current_state[LEFT_SITE(sm[i]/N_BOND)] & 1;
+            current_state[LEFT_SITE(sm[i]/N_BOND)] =
+                (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2)
+                + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1);
+            current_state[RIGHT_SITE(sm[i]/N_BOND)] =
+                (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2)
                 + left_up;
         } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = (current_state[sm[i]/N_BOND-1] & 2);
-            current_state[sm[i]/N_BOND-1] =
-                (current_state[sm[i]/N_BOND-1] & 1)
-                + (current_state[sm[i]/N_BOND] & 2);
-            current_state[sm[i]/N_BOND] =
-                (current_state[sm[i]/N_BOND] & 1)
+            int left_down = (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2);
+            current_state[LEFT_SITE(sm[i]/N_BOND)] =
+                (current_state[LEFT_SITE(sm[i]/N_BOND)] & 1)
+                + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2);
+            current_state[RIGHT_SITE(sm[i]/N_BOND)] =
+                (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1)
                 + left_down;
         }
     }
@@ -142,45 +149,46 @@ void mc :: do_update() {
             if (sm[i] == 0)
                 continue;
             // establish links
-            if (first[sm[i]/N_BOND-1] == -1) {
-                first[sm[i]/N_BOND-1] = 4 * p;
-                last[sm[i]/N_BOND-1] = 4 * p + 3;
+            if (first[LEFT_SITE(sm[i]/N_BOND)] == -1) {
+                first[LEFT_SITE(sm[i]/N_BOND)] = 4 * p;
+                last[LEFT_SITE(sm[i]/N_BOND)] = 4 * p + 3;
             } else {
-                link[4*p] = last[sm[i]/N_BOND-1];
-                link[last[sm[i]/N_BOND-1]] = 4 * p;
-                last[sm[i]/N_BOND-1] = 4 * p + 3;
+                link[4*p] = last[LEFT_SITE(sm[i]/N_BOND)];
+                link[last[LEFT_SITE(sm[i]/N_BOND)]] = 4 * p;
+                last[LEFT_SITE(sm[i]/N_BOND)] = 4 * p + 3;
             }
-            if (first[sm[i]/N_BOND] == -1) {
-                first[sm[i]/N_BOND] = 4 * p + 1;
-                last[sm[i]/N_BOND] = 4 * p + 2;
+            if (first[RIGHT_SITE(sm[i]/N_BOND)] == -1) {
+                first[RIGHT_SITE(sm[i]/N_BOND)] = 4 * p + 1;
+                last[RIGHT_SITE(sm[i]/N_BOND)] = 4 * p + 2;
             } else {
-                link[4*p+1] = last[sm[i]/N_BOND];
-                link[last[sm[i]/N_BOND]] = 4 * p + 1;
-                last[sm[i]/N_BOND] = 4 * p + 2;
+                link[4*p+1] = last[RIGHT_SITE(sm[i]/N_BOND)];
+                link[last[RIGHT_SITE(sm[i]/N_BOND)]] = 4 * p + 1;
+                last[RIGHT_SITE(sm[i]/N_BOND)] = 4 * p + 2;
             }
 
             // determine vertex type
-            vtx[p] = current_state[sm[i]/N_BOND-1]
-                     + (current_state[sm[i]/N_BOND] << 2);
+            vtx[p] = current_state[LEFT_SITE(sm[i]/N_BOND)]
+                     + (current_state[RIGHT_SITE(sm[i]/N_BOND)] << 2);
             if (sm[i] % N_BOND == 1) {   // spin up hopping
-                int left_up = current_state[sm[i]/N_BOND-1] & 1;
-                current_state[sm[i]/N_BOND-1] =
-                    (current_state[sm[i]/N_BOND-1] & 2)
-                    + (current_state[sm[i]/N_BOND] & 1);
-                current_state[sm[i]/N_BOND] =
-                    (current_state[sm[i]/N_BOND] & 2)
+                int left_up = current_state[LEFT_SITE(sm[i]/N_BOND)] & 1;
+                current_state[LEFT_SITE(sm[i]/N_BOND)] =
+                    (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2)
+                    + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1);
+                current_state[RIGHT_SITE(sm[i]/N_BOND)] =
+                    (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2)
                     + left_up;
             } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-                int left_down = (current_state[sm[i]/N_BOND-1] & 2);
-                current_state[sm[i]/N_BOND-1] =
-                    (current_state[sm[i]/N_BOND-1] & 1)
-                    + (current_state[sm[i]/N_BOND] & 2);
-                current_state[sm[i]/N_BOND] =
-                    (current_state[sm[i]/N_BOND] & 1)
+                int left_down =
+                    (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2);
+                current_state[LEFT_SITE(sm[i]/N_BOND)] =
+                    (current_state[LEFT_SITE(sm[i]/N_BOND)] & 1)
+                    + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2);
+                current_state[RIGHT_SITE(sm[i]/N_BOND)] =
+                    (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1)
                     + left_down;
             }
-            vtx[p] += (current_state[sm[i]/N_BOND] << 4)
-                      + (current_state[sm[i]/N_BOND-1] << 6);
+            vtx[p] += (current_state[RIGHT_SITE(sm[i]/N_BOND)] << 4)
+                      + (current_state[LEFT_SITE(sm[i]/N_BOND)] << 6);
 
             ++p;
         }
