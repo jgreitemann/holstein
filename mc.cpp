@@ -1,7 +1,8 @@
 #include "mc.h"
 
-#define N_BOND 3                // number of bond operators
+#define N_BOND 3                // number of bond operator flavors
 #define NB (L)                  // number of bonds
+#define COORD 2                 // coordination number
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
 
@@ -266,10 +267,18 @@ void mc :: do_update() {
 }
 
 void mc :: do_measurement() {
-    double energy = -T * n;
+    int N_up = 0, N_down = 0;
+    for (uint s = 0; s < L; ++s) {
+        N_up += state[s] & 1;
+        N_down += (state[s] & 2) >> 1;
+    }
+    double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down);
 
     // add data to measurement
     measure.add("Energy", energy);
+    measure.add("N_up", N_up);
+    measure.add("N_down", N_down);
+    measure.add("N", N_up+N_down);
 }
 
 
@@ -310,6 +319,9 @@ void mc :: init() {
 
     // add observables
     measure.add_observable("Energy");
+    measure.add_observable("N_up");
+    measure.add_observable("N_down");
+    measure.add_observable("N");
 }
 
 void mc :: write(string dir) {
