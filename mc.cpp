@@ -30,11 +30,9 @@ mc :: mc (string dir) {
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     N_loop = param.value_or_default<double>("N_LOOP", 2.0);
-    M = (uint)(a * init_n_max);
 
     // resize vectors
     state.resize(L);
-    sm.resize(M, 0);
     weight.resize(256, 0);
     vtx_type.resize(256, 0);
     prob.resize(8192, 0);
@@ -316,6 +314,8 @@ void mc :: init() {
 
     n = 0;
     sweep=0;
+    M = (uint)(a * init_n_max);
+    sm.resize(M, 0);
 
     // add observables
     measure.add_observable("Energy");
@@ -349,6 +349,7 @@ bool mc :: read(string dir) {
         d.read(sweep);
         d.read(state);
         d.read(sm);
+        M = sm.size();
         d.read(n);
         d.close();
         return true;
