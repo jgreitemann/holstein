@@ -38,6 +38,7 @@ private:
     vector<double> weight;
     vector<int> vtx_type;
     vector<double> prob;
+    vector<int> ns;
 
 public:    
     parser param;

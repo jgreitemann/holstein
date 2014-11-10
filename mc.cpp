@@ -36,6 +36,7 @@ mc :: mc (string dir) {
     weight.resize(256, 0);
     vtx_type.resize(256, 0);
     prob.resize(8192, 0);
+    ns.resize(L);
 
     // parse vertex weights
     int vtx, j, i;
@@ -82,6 +83,7 @@ mc :: ~mc() {
     weight.clear();
     vtx_type.clear();
     prob.clear();
+    ns.clear();
 }
 
 void mc :: do_update() {
@@ -267,6 +269,7 @@ void mc :: do_update() {
 void mc :: do_measurement() {
     int N_up = 0, N_down = 0;
     for (uint s = 0; s < L; ++s) {
+        ns[s] = (state[s] & 1) + ((state[s] & 2) >> 1);
         N_up += state[s] & 1;
         N_down += (state[s] & 2) >> 1;
     }
@@ -277,6 +280,13 @@ void mc :: do_measurement() {
     measure.add("N_up", N_up);
     measure.add("N_down", N_down);
     measure.add("N", N_up+N_down);
+    measure.add("n_i", ns);
+    
+    // calculate and measure density-density correlation
+    for (uint s = L; s > 0; --s) {
+        ns[s-1] *= ns[0];
+    }
+    measure.add("n_1n_i", ns);
 }
 
 
@@ -322,6 +332,8 @@ void mc :: init() {
     measure.add_observable("N_up");
     measure.add_observable("N_down");
     measure.add_observable("N");
+    measure.add_vectorobservable("n_i", L);
+    measure.add_vectorobservable("n_1n_i", L);
 }
 
 void mc :: write(string dir) {
