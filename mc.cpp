@@ -32,6 +32,7 @@ mc :: mc (string dir) {
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     N_loop = param.value_or_default<double>("N_LOOP", 2.0);
     assert(N_el_up <= L && N_el_down <= L);
+    assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
 
     // resize vectors
     state.resize(L);
