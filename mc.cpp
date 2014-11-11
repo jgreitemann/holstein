@@ -20,7 +20,8 @@ mc :: mc (string dir) {
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
     T = param.value_or_default<double>("T", 1.);
-    filling = param.value_or_default<double>("FILLING", .5);
+    N_el_up = param.value_or_default<int>("N_el_up", L/2);
+    N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
     a = param.value_or_default<double>("A", 1.3);
     U = param.value_or_default<double>("U", 1.);
     t = param.value_or_default<double>("HOPPING", 1.);
@@ -30,6 +31,7 @@ mc :: mc (string dir) {
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     N_loop = param.value_or_default<double>("N_LOOP", 2.0);
+    assert(N_el_up <= L && N_el_down <= L);
 
     // resize vectors
     state.resize(L);
@@ -275,7 +277,7 @@ void mc :: do_measurement() {
     }
     
     // skip measurement if particle numbers are not right
-    if (N_up != (uint)(filling*L) || N_down != (uint)(filling*L))
+    if (N_up != N_el_up || N_down != N_el_down)
         return;
     
     double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down);
@@ -300,25 +302,27 @@ void mc :: init() {
     random_init();
 
     // initialize states randomly
-    bool place_holes = (filling > 0.51);
-    int initial_state = place_holes ? 3 : 0;
+    bool place_holes_up = N_el_up > L/2;
+    bool place_holes_down = N_el_down > L/2;
+    int initial_state = (place_holes_up ? 1 : 0)
+                        | (place_holes_down ? 2 : 0);
     for (uint i = 0; i < L; i++) {
         state[i] = initial_state;
     }
     // place down spins
-    uint things_to_place = (uint)(filling * L);
+    uint things_to_place = place_holes_down ? (L-N_el_down) : N_el_down;
     while (things_to_place > 0) {
         int site = random0N(L);
-        if (state[site] / 2 == place_holes) {
+        if ((state[site] & 2) >> 1 == place_holes_down) {
             state[site] ^= 2;
             things_to_place--;
         }
     }
     // place up spins
-    things_to_place = (uint)(filling * L);
+    things_to_place = place_holes_up ? (L-N_el_up) : N_el_up;
     while (things_to_place > 0) {
         int site = random0N(L);
-        if (state[site] % 2 == place_holes) {
+        if ((state[site] & 1) == place_holes_up) {
             state[site] ^= 1;
             things_to_place--;
         }
