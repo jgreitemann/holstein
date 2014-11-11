@@ -267,19 +267,21 @@ void mc :: do_update() {
 }
 
 void mc :: do_measurement() {
-    int N_up = 0, N_down = 0;
+    uint N_up = 0, N_down = 0;
     for (uint s = 0; s < L; ++s) {
         ns[s] = (state[s] & 1) + ((state[s] & 2) >> 1);
         N_up += state[s] & 1;
         N_down += (state[s] & 2) >> 1;
     }
+    
+    // skip measurement if particle numbers are not right
+    if (N_up != (uint)(filling*L) || N_down != (uint)(filling*L))
+        return;
+    
     double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down);
 
     // add data to measurement
     measure.add("Energy", energy);
-    measure.add("N_up", N_up);
-    measure.add("N_down", N_down);
-    measure.add("N", N_up+N_down);
     measure.add("n_i", ns);
     
     // calculate and measure density-density correlation
@@ -329,9 +331,6 @@ void mc :: init() {
 
     // add observables
     measure.add_observable("Energy");
-    measure.add_observable("N_up");
-    measure.add_observable("N_down");
-    measure.add_observable("N");
     measure.add_vectorobservable("n_i", L);
     measure.add_vectorobservable("n_1n_i", L);
 }
