@@ -45,6 +45,10 @@ mc :: mc (string dir) {
     int vtx, j, i;
     double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
     ifstream file1("../vertex_types.txt");
+    if (!file1.is_open()) {
+        cerr << "Could not open file vertex_types.txt" << endl;
+        exit(1);
+    }
     while (file1 >> vtx >> j >> i) {
         weight[vtx] = W[i-1];
         vtx_type[vtx] = j;
@@ -66,6 +70,10 @@ mc :: mc (string dir) {
                     t
                  };
     ifstream file2("../assignments.txt");
+    if (!file2.is_open()) {
+        cerr << "Could not open file assignments.txt" << endl;
+        exit(1);
+    }
     while (file2 >> vtx >> j) {
         prob[vtx] = a[j] / weight[vtx & 255];
     }
