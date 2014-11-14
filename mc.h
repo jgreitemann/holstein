@@ -26,6 +26,7 @@ private:
     double a;
     double U;
     double t;
+    double mu;
     double epsilon;
     uint therm;
     vector<int> state;

@@ -6,15 +6,6 @@
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
 
-double epsilon_min(double U, double t) {
-    if (t > abs(U)/4)   // region I
-        return t/2 + abs(U)/8 - U/4;
-    else if (U > 0)     // region II
-        return 0;
-    else                // region III
-        return -U/2;
-}
-
 mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
@@ -25,8 +16,8 @@ mc :: mc (string dir) {
     a = param.value_or_default<double>("A", 1.3);
     U = param.value_or_default<double>("U", 1.);
     t = param.value_or_default<double>("HOPPING", 1.);
-    epsilon = param.value_or_default<double>("EPSILON",
-                                             epsilon_min(U,t));
+    mu = param.value_or_default<double>("MU", 0.);
+    epsilon = param.value_or_default<double>("EPSILON", -1.);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -40,10 +31,74 @@ mc :: mc (string dir) {
     vtx_type.resize(256, 0);
     prob.resize(8192, 0);
     ns.resize(L);
+    
+    // calculate loop segment weights
+    double a[][7] = {
+                        {0, 0, 0, 0, 0, 0, 0}, // b_1
+                        {0, 0, 0, 0, 0, 0, 0}, // b_2
+                        { // a
+                            U/8+2*abs(mu)+mu+mu/2-t/2,
+                            U/8+2*abs(mu)-mu-mu/2-t/2,
+                            U/8+2*abs(mu)+mu/2-t/2,
+                            U/8+2*abs(mu)-mu/2-t/2,
+                            3*U/8+2*abs(mu)+mu/2-t/2,
+                            3*U/8+2*abs(mu)-mu/2-t/2,
+                            t
+                        },
+                        { // b
+                            -U/8+mu-mu/2+t/2,
+                            -U/8-mu+mu/2+t/2,
+                            -U/8-mu/2+t/2,
+                            -U/8+mu/2+t/2,
+                            -U/8+mu/2+t/2,
+                            -U/8-mu/2+t/2,
+                            0
+                        },
+                        { // c
+                            U/8-mu+mu/2+t/2,
+                            U/8+mu-mu/2+t/2,
+                            U/8+mu/2+t/2,
+                            U/8-mu/2+t/2,
+                            U/8-mu/2+t/2,
+                            U/8+mu/2+t/2,
+                            0
+                        }
+                    };
+    for (uint i = 0; i < 7; ++i) {
+        a[1][i] = (a[3][i] < 0) ? -2*a[3][i] : 0;
+        a[0][i] = (a[4][i] < 0) ? -2*a[4][i] : 0;
+        a[3][i] += -a[0][i]/2 + a[1][i]/2;
+        a[4][i] += a[0][i]/2 - a[1][i]/2;
+        a[2][i] -= a[0][i]/2 + a[1][i]/2;
+    }
+    
+    // determine epsilon
+    double epsilon_min = 0.0;
+    for (uint i = 0; i < 7; ++i) {
+        if (a[2][i] < -epsilon_min) {
+            epsilon_min = -a[2][i];
+        }
+    }
+    if (epsilon < 0) {
+        epsilon = epsilon_min;
+    } else {
+        assert(epsilon > epsilon_min);
+    }
+    for (uint i = 0; i < 7; ++i) {
+        a[2][i] += epsilon;
+    }
 
     // parse vertex weights
     int vtx, j, i;
-    double W[] = {epsilon, U/4+epsilon, U/2+epsilon, t};
+    double W[] = {
+                     2*(abs(mu)-mu) + epsilon,
+                     2*abs(mu) + epsilon,
+                     2*(abs(mu)+mu) + epsilon,
+                     U/4 + 2*abs(mu) - mu + epsilon,
+                     U/4 + 2*abs(mu) + mu + epsilon,
+                     U/2 + 2*abs(mu) + epsilon,
+                     t
+                 };
     ifstream file1("../vertex_types.txt");
     if (!file1.is_open()) {
         cerr << "Could not open file vertex_types.txt" << endl;
@@ -56,26 +111,13 @@ mc :: mc (string dir) {
     file1.close();
 
     // calculate transition probabilities
-    double b1 = (t < -U/4) ? (-U/4-t) : 0;
-    double b2 = (t < +U/4) ? (+U/4-t) : 0;
-    double a[] = {
-                    b1,
-                    b2,
-                    U/8+epsilon-t/2-b1/2-b2/2,
-                    -U/8+t/2-b1/2+b2/2,
-                    U/8+t/2+b1/2-b2/2,
-                    3*U/8+epsilon-t/2-b1/2-b2/2,
-                    -U/8+t/2-b1/2+b2/2,
-                    U/8+t/2+b1/2-b2/2,
-                    t
-                 };
     ifstream file2("../assignments.txt");
     if (!file2.is_open()) {
         cerr << "Could not open file assignments.txt" << endl;
         exit(1);
     }
-    while (file2 >> vtx >> j) {
-        prob[vtx] = a[j] / weight[vtx & 255];
+    while (file2 >> vtx >> i >> j) {
+        prob[vtx] = a[j][i] / weight[vtx & 255];
     }
     file2.close();
 
@@ -284,12 +326,15 @@ void mc :: do_measurement() {
         N_up += state[s] & 1;
         N_down += (state[s] & 2) >> 1;
     }
+    measure.add("N_up", N_up);
+    measure.add("N_down", N_down);
     
     // skip measurement if particle numbers are not right
     if (N_up != N_el_up || N_down != N_el_down)
         return;
     
-    double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down);
+    double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down)
+                    -2*mu*(L-N_up-N_down);
 
     // add data to measurement
     measure.add("Energy", energy);
@@ -343,6 +388,8 @@ void mc :: init() {
     sm.resize(M, 0);
 
     // add observables
+    measure.add_observable("N_up");
+    measure.add_observable("N_down");
     measure.add_observable("Energy");
     measure.add_vectorobservable("n_i", L);
     measure.add_vectorobservable("n_1n_i", L);
