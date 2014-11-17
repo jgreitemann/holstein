@@ -94,7 +94,7 @@ mc :: mc (string dir) {
     if (epsilon < 0) {
         epsilon = epsilon_min;
     } else {
-        assert(epsilon > epsilon_min);
+        assert(epsilon >= epsilon_min);
     }
 #ifndef HEAT_BATH
     for (uint i = 0; i < 7; ++i) {
