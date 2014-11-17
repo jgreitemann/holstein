@@ -274,7 +274,7 @@ void mc :: do_update() {
                 for (exit_leg = 0; exit_leg < 4; ++exit_leg)
                     if (r < prob[(exit_leg << 11) + ent_vtx])
                         break;
-                assert(r < prob[(exit_leg << 11) + ent_vtx]);
+                assert(exit_leg < 4); // assert that break was called
                 // flip the vertex:
                 vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
                             ^ ((2-right_flag) << 2*exit_leg);
