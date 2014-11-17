@@ -6,6 +6,16 @@
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
 
+#ifdef HEAT_BATH
+inline int flipped_vtx(int vtx) {
+    bool right_flag = (vtx >> 8) & 1;
+    int ent_leg = (vtx >> 9) & 3;
+    int exit_leg = (vtx >> 11) & 3;
+    return (vtx & 255) ^ ((2-right_flag) << (2*ent_leg))
+                       ^ ((2-right_flag) << (2*exit_leg));
+}
+#endif
+
 mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
@@ -74,19 +84,23 @@ mc :: mc (string dir) {
     
     // determine epsilon
     double epsilon_min = 0.0;
+#ifndef HEAT_BATH
     for (uint i = 0; i < 7; ++i) {
         if (a[2][i] < -epsilon_min) {
             epsilon_min = -a[2][i];
         }
     }
+#endif
     if (epsilon < 0) {
         epsilon = epsilon_min;
     } else {
         assert(epsilon > epsilon_min);
     }
+#ifndef HEAT_BATH
     for (uint i = 0; i < 7; ++i) {
         a[2][i] += epsilon;
     }
+#endif
 
     // parse vertex weights
     int vtx, j, i;
@@ -111,6 +125,7 @@ mc :: mc (string dir) {
     file1.close();
 
     // calculate transition probabilities
+#ifndef HEAT_BATH
     ifstream file2("../assignments.txt");
     if (!file2.is_open()) {
         cerr << "Could not open file assignments.txt" << endl;
@@ -120,6 +135,18 @@ mc :: mc (string dir) {
         prob[vtx] = a[j][i] / weight[vtx & 255];
     }
     file2.close();
+#else
+    for (i = 0; i < 2048; ++i) {
+        double total = 0.;
+        for (int vtx = i; vtx < 8192; vtx += 2048) {
+            prob[vtx] = weight[flipped_vtx(vtx)];
+            total += prob[vtx];
+        }
+        for (int vtx = i; vtx < 8192; vtx += 2048) {
+            prob[vtx] /= total;
+        }
+    }
+#endif
 
     // cumulate transition probabilities
     for (i = 0; i < 2048; ++i) {
