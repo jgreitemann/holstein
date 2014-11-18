@@ -27,8 +27,8 @@ endif
 MCLL  = $(MC_CODE_DIR)/load_leveller/trunk
 APPMCLL = $(MC_CODE_DIR)/holstein
 
-CC = $(MPI)/bin/mpiCC
-LD = $(MPI)/bin/mpiCC
+CC = $(MPICC)
+LD = $(MPICC)
 ifeq ($(MODE),SINGLE)
   CC=g++
   LD=g++
