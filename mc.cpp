@@ -34,6 +34,7 @@ mc :: mc (string dir) {
     N_loop = param.value_or_default<double>("N_LOOP", 2.0);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
+    assert(t > 0);
 
     // resize vectors
     state.resize(L);
@@ -41,36 +42,51 @@ mc :: mc (string dir) {
     vtx_type.resize(256, 0);
     prob.resize(8192, 0);
     ns.resize(L);
-    
+
+    // define weights
+    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    double W[] = {
+                     C - U/4 - 2*mu,
+                     C - U/4,
+                     C - U/4 + 2*mu,
+                     C - mu,
+                     C + mu,
+                     C + U/4,
+                     t
+                 };
+    for (uint i = 0; i < 7; ++i) {
+        assert(W[i] >= 0);
+    }
+
     // calculate loop segment weights
     double a[][7] = {
                         {0, 0, 0, 0, 0, 0, 0}, // b_1
                         {0, 0, 0, 0, 0, 0, 0}, // b_2
                         { // a
-                            U/8+2*abs(mu)+mu+mu/2-t/2,
-                            U/8+2*abs(mu)-mu-mu/2-t/2,
-                            U/8+2*abs(mu)+mu/2-t/2,
-                            U/8+2*abs(mu)-mu/2-t/2,
-                            3*U/8+2*abs(mu)+mu/2-t/2,
-                            3*U/8+2*abs(mu)-mu/2-t/2,
+                            0.5 * (W[2] + W[4] - W[6]),
+                            0.5 * (W[0] + W[3] - W[6]),
+                            0.5 * (W[1] + W[4] - W[6]),
+                            0.5 * (W[1] + W[3] - W[6]),
+                            0.5 * (W[4] + W[5] - W[6]),
+                            0.5 * (W[3] + W[5] - W[6]),
                             t
                         },
                         { // b
-                            -U/8+mu-mu/2+t/2,
-                            -U/8-mu+mu/2+t/2,
-                            -U/8-mu/2+t/2,
-                            -U/8+mu/2+t/2,
-                            -U/8+mu/2+t/2,
-                            -U/8-mu/2+t/2,
+                            0.5 * (W[2] - W[4] + W[6]),
+                            0.5 * (W[0] - W[3] + W[6]),
+                            0.5 * (W[1] - W[4] + W[6]),
+                            0.5 * (W[1] - W[3] + W[6]),
+                            0.5 * (W[4] - W[5] + W[6]),
+                            0.5 * (W[3] - W[5] + W[6]),
                             0
                         },
                         { // c
-                            U/8-mu+mu/2+t/2,
-                            U/8+mu-mu/2+t/2,
-                            U/8+mu/2+t/2,
-                            U/8-mu/2+t/2,
-                            U/8-mu/2+t/2,
-                            U/8+mu/2+t/2,
+                            0.5 * (-W[2] + W[4] + W[6]),
+                            0.5 * (-W[0] + W[3] + W[6]),
+                            0.5 * (-W[1] + W[4] + W[6]),
+                            0.5 * (-W[1] + W[3] + W[6]),
+                            0.5 * (-W[4] + W[5] + W[6]),
+                            0.5 * (-W[3] + W[5] + W[6]),
                             0
                         }
                     };
@@ -81,7 +97,7 @@ mc :: mc (string dir) {
         a[4][i] += a[0][i]/2 - a[1][i]/2;
         a[2][i] -= a[0][i]/2 + a[1][i]/2;
     }
-    
+
     // determine epsilon
     double epsilon_min = 0.0;
 #ifndef HEAT_BATH
@@ -104,15 +120,9 @@ mc :: mc (string dir) {
 
     // parse vertex weights
     int vtx, j, i;
-    double W[] = {
-                     2*(abs(mu)-mu) + epsilon,
-                     2*abs(mu) + epsilon,
-                     2*(abs(mu)+mu) + epsilon,
-                     U/4 + 2*abs(mu) - mu + epsilon,
-                     U/4 + 2*abs(mu) + mu + epsilon,
-                     U/2 + 2*abs(mu) + epsilon,
-                     t
-                 };
+    for (uint i = 0; i < 6; ++i) {
+        W[i] += epsilon;
+    }
     ifstream file1("../vertex_types.txt");
     if (!file1.is_open()) {
         cerr << "Could not open file vertex_types.txt" << endl;
@@ -359,9 +369,10 @@ void mc :: do_measurement() {
     // skip measurement if particle numbers are not right
     if (N_up != N_el_up || N_down != N_el_down)
         return;
-    
-    double energy = -T * n + epsilon*NB + U/4*COORD*(N_up+N_down)
-                    -2*mu*(L-N_up-N_down);
+
+    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    double energy = -T * n + (C + epsilon)*NB + U/4*COORD*(N_up+N_down)
+                    -U*NB/4 - 2*mu*(L-N_up-N_down);
 
     // add data to measurement
     measure.add("Energy", energy);
