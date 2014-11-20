@@ -5,14 +5,15 @@
 #define COORD 2                 // coordination number
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
+#define N_WORM 2                // number of worm types
 
 #ifdef HEAT_BATH
 inline int flipped_vtx(int vtx) {
-    bool right_flag = (vtx >> 8) & 1;
-    int ent_leg = (vtx >> 9) & 3;
-    int exit_leg = (vtx >> 11) & 3;
-    return (vtx & 255) ^ ((2-right_flag) << (2*ent_leg))
-                       ^ ((2-right_flag) << (2*exit_leg));
+    int worm = vtx >> 12;
+    int ent_leg = (vtx >> 8) & 3;
+    int exit_leg = (vtx >> 10) & 3;
+    return (vtx & 255) ^ ((worm+1) << (2*ent_leg))
+                       ^ ((worm+1) << (2*exit_leg));
 }
 #endif
 
@@ -40,8 +41,9 @@ mc :: mc (string dir) {
     state.resize(L);
     weight.resize(256, 0);
     vtx_type.resize(256, 0);
-    prob.resize(8192, 0);
+    prob.resize(N_WORM<<12, 0);
     ns.resize(L);
+
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -58,6 +60,7 @@ mc :: mc (string dir) {
         assert(W[i] >= 0);
     }
 
+#ifndef HEAT_BATH
     // calculate loop segment weights
     double a[][7] = {
                         {0, 0, 0, 0, 0, 0, 0}, // b_1
@@ -97,6 +100,7 @@ mc :: mc (string dir) {
         a[4][i] += a[0][i]/2 - a[1][i]/2;
         a[2][i] -= a[0][i]/2 + a[1][i]/2;
     }
+#endif
 
     // determine epsilon
     double epsilon_min = 0.0;
@@ -146,23 +150,27 @@ mc :: mc (string dir) {
     }
     file2.close();
 #else
-    for (i = 0; i < 2048; ++i) {
-        double total = 0.;
-        for (int vtx = i; vtx < 8192; vtx += 2048) {
-            prob[vtx] = weight[flipped_vtx(vtx)];
-            total += prob[vtx];
-        }
-        for (int vtx = i; vtx < 8192; vtx += 2048) {
-            prob[vtx] /= total;
+    for (i = 0; i < 1024; ++i) {
+        for (uint worm = 0; worm < N_WORM; ++worm) {
+            double total = 0.;
+            for (int vtx = i; vtx < 4096; vtx += 1024) {
+                prob[(worm<<12)+vtx]=weight[flipped_vtx((worm<<12)+vtx)];
+                total += prob[(worm<<12)+vtx];
+            }
+            for (int vtx = i; vtx < 4096; vtx += 1024) {
+                prob[(worm<<12)+vtx] /= total;
+            }
         }
     }
 #endif
 
     // cumulate transition probabilities
-    for (i = 0; i < 2048; ++i) {
-        prob[(1<<11)+i] += prob[i];
-        prob[(2<<11)+i] += prob[(1<<11)+i];
-        prob[(3<<11)+i] += prob[(2<<11)+i];
+    for (i = 0; i < 1024; ++i) {
+        for (uint worm = 0; worm < N_WORM; ++worm) {
+            prob[(worm<<12)+(1<<10)+i] += prob[(worm<<12)+i];
+            prob[(worm<<12)+(2<<10)+i] += prob[(worm<<12)+(1<<10)+i];
+            prob[(worm<<12)+(3<<10)+i] += prob[(worm<<12)+(2<<10)+i];
+        }
     }
 }
 
@@ -292,13 +300,12 @@ void mc :: do_update() {
         current_state.clear();
 
         // directed loop construction
-        int j, j0, ent_vtx, exit_leg;
-        bool right_flag;
+        int j, j0, ent_vtx, exit_leg, worm;
         double r;
         for (uint i = 0; i < N_loop*M; ++i) {
-            j0 = random0N(8*n);
-            right_flag = j0 & 1;
-            j0 >>= 1;
+            j0 = random0N(N_WORM*4*n);
+            worm = j0 / (4*n);
+            j0 %= 4*n;
             j = j0;
             for (uint k = 0; ; ++k) {
                 if (k == loop_term*M) {
@@ -306,15 +313,15 @@ void mc :: do_update() {
                     return;
                 }
                 assert(j/4 < (int)n);
-                ent_vtx = ((j%4) << 9) + (right_flag << 8) + vtx[j/4];
+                ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
                 r = random01();
                 for (exit_leg = 0; exit_leg < 4; ++exit_leg)
-                    if (r < prob[(exit_leg << 11) + ent_vtx])
+                    if (r < prob[(exit_leg << 10) | ent_vtx])
                         break;
                 assert(exit_leg < 4); // assert that break was called
                 // flip the vertex:
-                vtx[j/4] ^= ((2-right_flag) << 2*(j%4))
-                            ^ ((2-right_flag) << 2*exit_leg);
+                vtx[j/4] ^= ((worm+1) << 2*(j%4))
+                            ^ ((worm+1) << 2*exit_leg);
                 j += exit_leg-(j%4); // exit leg position in linked list
                 if (j == j0)    // loop closed (SS02, Fig. 4b)
                     break;
