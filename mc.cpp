@@ -62,17 +62,16 @@ mc :: mc (string dir) {
 
 #ifndef HEAT_BATH
     // calculate loop segment weights
-    double a[][7] = {
-                        {0, 0, 0, 0, 0, 0, 0}, // b_1
-                        {0, 0, 0, 0, 0, 0, 0}, // b_2
+    double a[][6] = {
+                        {0, 0, 0, 0, 0, 0}, // b_1
+                        {0, 0, 0, 0, 0, 0}, // b_2
                         { // a
                             0.5 * (W[2] + W[4] - W[6]),
                             0.5 * (W[0] + W[3] - W[6]),
                             0.5 * (W[1] + W[4] - W[6]),
                             0.5 * (W[1] + W[3] - W[6]),
                             0.5 * (W[4] + W[5] - W[6]),
-                            0.5 * (W[3] + W[5] - W[6]),
-                            t
+                            0.5 * (W[3] + W[5] - W[6])
                         },
                         { // b
                             0.5 * (W[2] - W[4] + W[6]),
@@ -80,8 +79,7 @@ mc :: mc (string dir) {
                             0.5 * (W[1] - W[4] + W[6]),
                             0.5 * (W[1] - W[3] + W[6]),
                             0.5 * (W[4] - W[5] + W[6]),
-                            0.5 * (W[3] - W[5] + W[6]),
-                            0
+                            0.5 * (W[3] - W[5] + W[6])
                         },
                         { // c
                             0.5 * (-W[2] + W[4] + W[6]),
@@ -89,11 +87,10 @@ mc :: mc (string dir) {
                             0.5 * (-W[1] + W[4] + W[6]),
                             0.5 * (-W[1] + W[3] + W[6]),
                             0.5 * (-W[4] + W[5] + W[6]),
-                            0.5 * (-W[3] + W[5] + W[6]),
-                            0
+                            0.5 * (-W[3] + W[5] + W[6])
                         }
                     };
-    for (uint i = 0; i < 7; ++i) {
+    for (uint i = 0; i < 6; ++i) {
         a[1][i] = (a[3][i] < 0) ? -2*a[3][i] : 0;
         a[0][i] = (a[4][i] < 0) ? -2*a[4][i] : 0;
         a[3][i] += -a[0][i]/2 + a[1][i]/2;
@@ -105,7 +102,7 @@ mc :: mc (string dir) {
     // determine epsilon
     double epsilon_min = 0.0;
 #ifndef HEAT_BATH
-    for (uint i = 0; i < 7; ++i) {
+    for (uint i = 0; i < 6; ++i) {
         if (a[2][i] < -epsilon_min) {
             epsilon_min = -a[2][i];
         }
@@ -117,7 +114,7 @@ mc :: mc (string dir) {
         assert(epsilon >= epsilon_min);
     }
 #ifndef HEAT_BATH
-    for (uint i = 0; i < 7; ++i) {
+    for (uint i = 0; i < 6; ++i) {
         a[2][i] += epsilon;
     }
 #endif
@@ -146,7 +143,11 @@ mc :: mc (string dir) {
         exit(1);
     }
     while (file2 >> vtx >> i >> j) {
-        prob[vtx] = a[j][i] / weight[vtx & 255];
+        if (j < 0) {    // there's a shortcut available!
+            prob[vtx & 13311] = j + 0.5;
+        } else {
+            prob[vtx] = a[j][i] / weight[vtx & 255];
+        }
     }
     file2.close();
 #else
@@ -167,9 +168,14 @@ mc :: mc (string dir) {
     // cumulate transition probabilities
     for (i = 0; i < 1024; ++i) {
         for (uint worm = 0; worm < N_WORM; ++worm) {
-            prob[(worm<<12)+(1<<10)+i] += prob[(worm<<12)+i];
-            prob[(worm<<12)+(2<<10)+i] += prob[(worm<<12)+(1<<10)+i];
-            prob[(worm<<12)+(3<<10)+i] += prob[(worm<<12)+(2<<10)+i];
+            if (prob[(worm<<12)+i] >= 0
+                    && prob[(worm<<12)+(1<<10)+i] >= 0
+                    && prob[(worm<<12)+(2<<10)+i] >= 0
+                    && prob[(worm<<12)+(3<<10)+i] >= 0) {
+                prob[(worm<<12)+(1<<10)+i] += prob[(worm<<12)+i];
+                prob[(worm<<12)+(2<<10)+i] += prob[(worm<<12)+(1<<10)+i];
+                prob[(worm<<12)+(3<<10)+i] += prob[(worm<<12)+(2<<10)+i];
+            }
         }
     }
 }
@@ -325,10 +331,14 @@ void mc :: do_update() {
                 }
                 assert(j/4 < (int)n);
                 ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
-                r = random01();
-                for (exit_leg = 0; exit_leg < 4; ++exit_leg)
-                    if (r < prob[(exit_leg << 10) | ent_vtx])
-                        break;
+                if (prob[ent_vtx] < 0) { // take shortcut
+                    exit_leg = (int)(-prob[ent_vtx]);
+                } else {
+                    r = random01();
+                    for (exit_leg = 0; exit_leg < 4; ++exit_leg)
+                        if (r < prob[(exit_leg << 10) | ent_vtx])
+                            break;
+                }
                 assert(exit_leg < 4); // assert that break was called
                 // flip the vertex:
                 vtx[j/4] ^= ((worm+1) << 2*(j%4))
