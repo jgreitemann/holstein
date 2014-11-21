@@ -36,6 +36,7 @@ private:
     uint loop_term;
     uint n;
     double N_loop;
+    bool dublon_rejected;
     vector<double> weight;
     vector<int> vtx_type;
     vector<double> prob;

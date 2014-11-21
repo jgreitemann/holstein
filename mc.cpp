@@ -311,7 +311,9 @@ void mc :: do_update() {
             // check if dublon worm can start from here
             if (worm == 2) {
                 int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
-                if ((ent_state & 1) ^ (ent_state >> 1)) {
+                dublon_rejected = (ent_state & 1) ^ (ent_state >> 1);
+                if (dublon_rejected) {
+                    // IMPORTANT: this has to be counted as a loop
                     continue; // not an empty or fully occupied site
                 }
             }
@@ -381,6 +383,7 @@ void mc :: do_measurement() {
     }
     measure.add("N_up", N_up);
     measure.add("N_down", N_down);
+    measure.add("dublon_rejection_rate", dublon_rejected);
     
     // skip measurement if particle numbers are not right
     if (N_up != N_el_up || N_down != N_el_down)
@@ -439,11 +442,13 @@ void mc :: init() {
     n = 0;
     sweep=0;
     M = (uint)(a * init_n_max);
+    dublon_rejected = true;
     sm.resize(M, 0);
 
     // add observables
     measure.add_observable("N_up");
     measure.add_observable("N_down");
+    measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
     measure.add_vectorobservable("n_i", L);
     measure.add_vectorobservable("n_1n_i", L);
@@ -456,6 +461,7 @@ void mc :: write(string dir) {
     d.write(state);
     d.write(sm);
     d.write(n);
+    d.write(dublon_rejected);
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -476,6 +482,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
+        d.read(dublon_rejected);
         d.close();
         return true;
     }
