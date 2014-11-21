@@ -5,7 +5,7 @@
 #define COORD 2                 // coordination number
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
-#define N_WORM 2                // number of worm types
+#define N_WORM 3                // number of worm types
 
 #ifdef HEAT_BATH
 inline int flipped_vtx(int vtx) {
@@ -307,6 +307,15 @@ void mc :: do_update() {
             worm = j0 / (4*n);
             j0 %= 4*n;
             j = j0;
+
+            // check if dublon worm can start from here
+            if (worm == 2) {
+                int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
+                if ((ent_state & 1) ^ (ent_state >> 1)) {
+                    continue; // not an empty or fully occupied site
+                }
+            }
+
             for (uint k = 0; ; ++k) {
                 if (k == loop_term*M) {
                     do_update();
