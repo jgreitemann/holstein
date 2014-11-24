@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <assert.h>
+#include <math.h>
 #include "measurements.h"
 #include "random.h"
 #include "parser.h"

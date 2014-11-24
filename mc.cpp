@@ -142,9 +142,13 @@ mc :: mc (string dir) {
         cerr << "Could not open file assignments.txt" << endl;
         exit(1);
     }
+    int mask = (((1 << (int)ceil(log2(N_WORM))) - 1) << 12) | 1023;
     while (file2 >> vtx >> i >> j) {
+        if (vtx >= (N_WORM << 12)) {
+            continue;
+        }
         if (j < 0) {    // there's a shortcut available!
-            prob[vtx & 13311] = j + 0.5;
+            prob[vtx & mask] = j + 0.5;
         } else {
             prob[vtx] = a[j][i] / weight[vtx & 255];
         }
