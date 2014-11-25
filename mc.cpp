@@ -142,13 +142,12 @@ mc :: mc (string dir) {
         cerr << "Could not open file assignments.txt" << endl;
         exit(1);
     }
-    int mask = (((1 << (int)ceil(log2(N_WORM))) - 1) << 12) | 1023;
     while (file2 >> vtx >> i >> j) {
         if (vtx >= (N_WORM << 12)) {
             continue;
         }
-        if (j < 0) {    // there's a shortcut available!
-            prob[vtx & mask] = j + 0.5;
+        if (i >= 6) {    // 2x2 group
+            prob[vtx] = 1.;
         } else {
             prob[vtx] = a[j][i] / weight[vtx & 255];
         }
@@ -172,14 +171,9 @@ mc :: mc (string dir) {
     // cumulate transition probabilities
     for (i = 0; i < 1024; ++i) {
         for (uint worm = 0; worm < N_WORM; ++worm) {
-            if (prob[(worm<<12)+i] >= 0
-                    && prob[(worm<<12)+(1<<10)+i] >= 0
-                    && prob[(worm<<12)+(2<<10)+i] >= 0
-                    && prob[(worm<<12)+(3<<10)+i] >= 0) {
-                prob[(worm<<12)+(1<<10)+i] += prob[(worm<<12)+i];
-                prob[(worm<<12)+(2<<10)+i] += prob[(worm<<12)+(1<<10)+i];
-                prob[(worm<<12)+(3<<10)+i] += prob[(worm<<12)+(2<<10)+i];
-            }
+            prob[(worm<<12)+(1<<10)+i] += prob[(worm<<12)+i];
+            prob[(worm<<12)+(2<<10)+i] += prob[(worm<<12)+(1<<10)+i];
+            prob[(worm<<12)+(3<<10)+i] += prob[(worm<<12)+(2<<10)+i];
         }
     }
 }
@@ -335,14 +329,10 @@ void mc :: do_update() {
                 }
                 assert(j/4 < (int)n);
                 ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
-                if (prob[ent_vtx] < 0) { // take shortcut
-                    exit_leg = (int)(-prob[ent_vtx]);
-                } else {
-                    r = random01();
-                    for (exit_leg = 0; exit_leg < 4; ++exit_leg)
-                        if (r < prob[(exit_leg << 10) | ent_vtx])
-                            break;
-                }
+                r = random01();
+                for (exit_leg = 0; exit_leg < 4; ++exit_leg)
+                    if (r < prob[(exit_leg << 10) | ent_vtx])
+                        break;
                 assert(exit_leg < 4); // assert that break was called
                 // flip the vertex:
                 vtx[j/4] ^= ((worm+1) << 2*(j%4))
