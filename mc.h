@@ -30,6 +30,7 @@ private:
     double epsilon;
     uint therm;
     vector<int> state;
+    vector<int> occ;
     vector<int> sm;
     uint sweep;
     uint init_n_max;

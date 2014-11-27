@@ -39,6 +39,7 @@ mc :: mc (string dir) {
 
     // resize vectors
     state.resize(L);
+    occ.resize(L, 0);
     weight.resize(256, 0);
     vtx_type.resize(256, 0);
     prob.resize(N_WORM<<12, 0);
@@ -181,6 +182,7 @@ mc :: mc (string dir) {
 mc :: ~mc() {
     random_clear();
     state.clear();
+    occ.clear();
     sm.clear();
     weight.clear();
     vtx_type.clear();
@@ -476,6 +478,7 @@ void mc :: write(string dir) {
     random_write(d);
     d.write(sweep);
     d.write(state);
+    d.write(occ);
     d.write(sm);
     d.write(n);
     d.write(dublon_rejected);
@@ -499,6 +502,7 @@ bool mc :: read(string dir) {
         random_read(d);
         d.read(sweep);
         d.read(state);
+        d.read(occ);
         d.read(sm);
         M = sm.size();
         d.read(n);
