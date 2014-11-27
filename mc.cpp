@@ -1,6 +1,6 @@
 #include "mc.h"
 
-#define N_BOND 3                // number of bond operator flavors
+#define N_BOND 8                // number of bond operator flavors
 #define NB (L)                  // number of bonds
 #define COORD 2                 // coordination number
 #define LEFT_SITE(b) (b-1)      // lattice -
@@ -200,6 +200,7 @@ void mc :: do_update() {
 
     // diagonal update
     vector<int> current_state(state);
+    vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(NB)+1;
@@ -207,9 +208,17 @@ void mc :: do_update() {
                       + (current_state[RIGHT_SITE(b)]<<2)
                       + (current_state[LEFT_SITE(b)]<<6)
                       + (current_state[RIGHT_SITE(b)]<<4);
-            if (random01() < NB/T*weight[vtx]/(M-n)) {
-                sm[i] = N_BOND*b;
-                n++;
+            if (random0N(2)) {  // try inserting an H_1
+                if (random01() < NB/T*weight[vtx]/(M-n)) {
+                    sm[i] = N_BOND*b;
+                    n++;
+                }
+            } else {            // try inserting an H_6
+                int cocc = current_occ[LEFT_SITE(b)];
+                if (random01() < NB/T*omega*(Np-cocc)/(M-n)) {
+                    sm[i] = N_BOND*b + 7;
+                    n++;
+                }
             }
         } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
             int b = sm[i] / N_BOND;
@@ -218,6 +227,13 @@ void mc :: do_update() {
                       + (current_state[LEFT_SITE(b)]<<6)
                       + (current_state[RIGHT_SITE(b)]<<4);
             if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
+                sm[i] = 0;
+                n--;
+            }
+        } else if (sm[i] % N_BOND == 7) {   // diagonal phonon operator
+            int b = sm[i] / N_BOND;
+            int cocc = current_occ[LEFT_SITE(b)];
+            if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
                 sm[i] = 0;
                 n--;
             }
@@ -237,6 +253,14 @@ void mc :: do_update() {
             current_state[RIGHT_SITE(sm[i]/N_BOND)] =
                 (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1)
                 + left_down;
+        } else if (sm[i] % N_BOND == 3) {   // create phonon on the left
+            current_occ[LEFT_SITE(sm[i]/N_BOND)]++;
+        } else if (sm[i] % N_BOND == 4) {   // create phonon on the right
+            current_occ[RIGHT_SITE(sm[i]/N_BOND)]++;
+        } else if (sm[i] % N_BOND == 5) {   // remove phonon on the left
+            current_occ[LEFT_SITE(sm[i]/N_BOND)]--;
+        } else if (sm[i] % N_BOND == 6) {   // remove phonon on the right
+            current_occ[RIGHT_SITE(sm[i]/N_BOND)]--;
         }
     }
 
