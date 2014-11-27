@@ -28,6 +28,8 @@ mc :: mc (string dir) {
     U = param.value_or_default<double>("U", 1.);
     t = param.value_or_default<double>("HOPPING", 1.);
     mu = param.value_or_default<double>("MU", 0.);
+    omega = param.value_or_default<double>("OMEGA", 1.);
+    lambda = param.value_or_default<double>("lambda", 0.);
     epsilon = param.value_or_default<double>("EPSILON", -1.);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
