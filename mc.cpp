@@ -460,6 +460,7 @@ void mc :: init() {
     n = 0;
     sweep=0;
     M = (uint)(a * init_n_max);
+    Np = 0;
     dublon_rejected = true;
     avg_worm_len = 0;
     worm_len_sample_size = 0;
@@ -483,6 +484,7 @@ void mc :: write(string dir) {
     d.write(occ);
     d.write(sm);
     d.write(n);
+    d.write(Np);
     d.write(dublon_rejected);
     d.write(avg_worm_len);
     d.write(worm_len_sample_size);
@@ -508,6 +510,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
+        s.read(Np);
         d.read(dublon_rejected);
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);

@@ -20,6 +20,7 @@ template class vector<double>;
 class mc {
 private:
     uint M;
+    uint Np;
     uint L;
     double T;
     uint N_el_up, N_el_down;
