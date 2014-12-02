@@ -198,17 +198,23 @@ void mc :: do_update() {
         N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
-    // diagonal update
+    vector<vector<int> > i1(L, vector<int>(1, 2));
+    vector<vector<int> > i2(L, vector<int>(1, 2));
+    vector<vector<int> > Nd(L, vector<int>(1, 2));
+    vector<vector<int> > m(L, vector<int>(1, 2));
+    vector<vector<int> > r(L, vector<int>(1, 2));
+
+    // diagonal update & subsequence construction
     vector<int> current_state(state);
     vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(NB)+1;
-            int vtx = current_state[LEFT_SITE(b)]
-                      + (current_state[RIGHT_SITE(b)]<<2)
-                      + (current_state[LEFT_SITE(b)]<<6)
-                      + (current_state[RIGHT_SITE(b)]<<4);
             if (random0N(2)) {  // try inserting an H_1
+                int vtx = current_state[LEFT_SITE(b)]
+                          + (current_state[RIGHT_SITE(b)]<<2)
+                          + (current_state[LEFT_SITE(b)]<<6)
+                          + (current_state[RIGHT_SITE(b)]<<4);
                 if (random01() < NB/T*weight[vtx]/(M-n)) {
                     sm[i] = N_BOND*b;
                     n++;
@@ -220,49 +226,88 @@ void mc :: do_update() {
                     n++;
                 }
             }
-        } else if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
+        } else {
             int b = sm[i] / N_BOND;
             int vtx = current_state[LEFT_SITE(b)]
                       + (current_state[RIGHT_SITE(b)]<<2)
                       + (current_state[LEFT_SITE(b)]<<6)
                       + (current_state[RIGHT_SITE(b)]<<4);
-            if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
-                sm[i] = 0;
-                n--;
+            if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
+                if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
+                    sm[i] = 0;
+                    n--;
+                }
+            } else if (sm[i] % N_BOND == 7) { // diagonal phonon operator
+                int cocc = current_occ[LEFT_SITE(b)];
+                if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
+                    sm[i] = 0;
+                    n--;
+                }
+            } else if (sm[i] % N_BOND == 1) {   // spin up hopping
+                int left_up = current_state[LEFT_SITE(b)] & 1;
+                current_state[LEFT_SITE(b)] =
+                    (current_state[LEFT_SITE(b)] & 2)
+                    + (current_state[RIGHT_SITE(b)] & 1);
+                current_state[RIGHT_SITE(b)] =
+                    (current_state[RIGHT_SITE(b)] & 2) + left_up;
+            } else if (sm[i] % N_BOND == 2) {   // spin down hopping
+                int left_down = (current_state[LEFT_SITE(b)] & 2);
+                current_state[LEFT_SITE(b)] =
+                    (current_state[LEFT_SITE(b)] & 1)
+                    + (current_state[RIGHT_SITE(b)] & 2);
+                current_state[RIGHT_SITE(b)] =
+                    (current_state[RIGHT_SITE(b)] & 1) + left_down;
+            } else if (sm[i] % N_BOND == 3) {
+                current_occ[LEFT_SITE(b)]++;
+            } else if (sm[i] % N_BOND == 4) {
+                current_occ[RIGHT_SITE(b)]++;
+            } else if (sm[i] % N_BOND == 5) {
+                current_occ[LEFT_SITE(b)]--;
+            } else if (sm[i] % N_BOND == 6) {
+                current_occ[RIGHT_SITE(b)]--;
             }
-        } else if (sm[i] % N_BOND == 7) {   // diagonal phonon operator
-            int b = sm[i] / N_BOND;
-            int cocc = current_occ[LEFT_SITE(b)];
-            if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
-                sm[i] = 0;
-                n--;
+            // append to the phonon subsequences
+            if (sm[i] % N_BOND == 7) {
+                Nd[LEFT_SITE(b)][Nd[LEFT_SITE(b)].size()-1]++;
+            } else {
+                int site;
+                bool close;
+                if (sm[i] % N_BOND == 0) {
+                    site = random0N(2) ? LEFT_SITE(b) : RIGHT_SITE(b);
+                    close = sm[i1[site].back()] % N_BOND == 1;
+                } else if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 4) {
+                    site = (sm[i]%N_BOND==3) ? LEFT_SITE(b)
+                                             : RIGHT_SITE(b);
+                    close = sm[i1[site].back()] % N_BOND == 5
+                            || sm[i1[site].back()] % N_BOND == 6;
+                } else if (sm[i] % N_BOND == 5 || sm[i] % N_BOND == 6) {
+                    site = (sm[i]%N_BOND==5) ? LEFT_SITE(b)
+                                             : RIGHT_SITE(b);
+                    close = sm[i1[site].back()] % N_BOND == 3
+                            || sm[i1[site].back()] % N_BOND == 4;
+                } else {
+                    continue;
+                }
+                int n_el = (current_state[site] & 1)
+                           + (current_state[site] >> 1);
+                if (close) {
+                    i2[site].push_back(i);
+                    r[site][r[site].size()-1] *= weight[vtx]/n_el;
+                } else {
+                    i1[site].pop_back();
+                    Nd[site].pop_back();
+                    m[site].pop_back();
+                    r[site].pop_back();
+                }
+                i1[site].push_back(i);
+                Nd[site].push_back(0);
+                m[site].push_back(current_occ[site]);
+                r[site].push_back(weight[vtx]/n_el);
             }
-        } else if (sm[i] % N_BOND == 1) {   // spin up hopping
-            int left_up = current_state[LEFT_SITE(sm[i]/N_BOND)] & 1;
-            current_state[LEFT_SITE(sm[i]/N_BOND)] =
-                (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2)
-                + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1);
-            current_state[RIGHT_SITE(sm[i]/N_BOND)] =
-                (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2)
-                + left_up;
-        } else if (sm[i] % N_BOND == 2) {   // spin down hopping
-            int left_down = (current_state[LEFT_SITE(sm[i]/N_BOND)] & 2);
-            current_state[LEFT_SITE(sm[i]/N_BOND)] =
-                (current_state[LEFT_SITE(sm[i]/N_BOND)] & 1)
-                + (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 2);
-            current_state[RIGHT_SITE(sm[i]/N_BOND)] =
-                (current_state[RIGHT_SITE(sm[i]/N_BOND)] & 1)
-                + left_down;
-        } else if (sm[i] % N_BOND == 3) {   // create phonon on the left
-            current_occ[LEFT_SITE(sm[i]/N_BOND)]++;
-        } else if (sm[i] % N_BOND == 4) {   // create phonon on the right
-            current_occ[RIGHT_SITE(sm[i]/N_BOND)]++;
-        } else if (sm[i] % N_BOND == 5) {   // remove phonon on the left
-            current_occ[LEFT_SITE(sm[i]/N_BOND)]--;
-        } else if (sm[i] % N_BOND == 6) {   // remove phonon on the right
-            current_occ[RIGHT_SITE(sm[i]/N_BOND)]--;
         }
     }
+    current_state.clear();
+    current_occ.clear();
 
     // adjust M during thermalization
     if (!is_thermalized() && a*n > M) {
@@ -272,6 +317,14 @@ void mc :: do_update() {
     assert(n <= M); // You might need to increase "a" or the
                     // thermalization time if this assertion fails.
 
+    // subsequence phonon update
+    i1.clear();
+    i2.clear();
+    Nd.clear();
+    m.clear();
+    r.clear();
+
+    // directed loops electron update
     if (n > 0) {
         // linked list construction
         vector<int> vtx(n, -1);
@@ -534,7 +587,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
-        s.read(Np);
+        d.read(Np);
         d.read(dublon_rejected);
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);
