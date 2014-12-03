@@ -199,11 +199,11 @@ void mc :: do_update() {
         N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
-    vector<vector<int> > i1(L, vector<int>(1, 2));
-    vector<vector<int> > i2(L, vector<int>(1, 2));
-    vector<vector<int> > Nd(L, vector<int>(1, 2));
-    vector<vector<int> > m(L, vector<int>(1, 2));
-    vector<vector<int> > r(L, vector<int>(1, 2));
+    vector<vector<int> > i1(L, vector<int>());
+    vector<vector<int> > i2(L, vector<int>());
+    vector<vector<int> > Nd(L, vector<int>());
+    vector<vector<int> > m(L, vector<int>());
+    vector<vector<double> > r(L, vector<double>());
 
     // diagonal update & subsequence construction
     vector<int> current_state(state);
@@ -275,17 +275,17 @@ void mc :: do_update() {
                 bool close;
                 if (sm[i] % N_BOND == 0) {
                     site = random0N(2) ? LEFT_SITE(b) : RIGHT_SITE(b);
-                    close = sm[i1[site].back()] % N_BOND == 1;
+                    close = !i1[site].empty() && sm[i1[site].back()] % N_BOND == 0;
                 } else if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 4) {
                     site = (sm[i]%N_BOND==3) ? LEFT_SITE(b)
                                              : RIGHT_SITE(b);
-                    close = sm[i1[site].back()] % N_BOND == 5
-                            || sm[i1[site].back()] % N_BOND == 6;
+                    close = !i1[site].empty() && (sm[i1[site].back()] % N_BOND == 5
+                            || sm[i1[site].back()] % N_BOND == 6);
                 } else if (sm[i] % N_BOND == 5 || sm[i] % N_BOND == 6) {
                     site = (sm[i]%N_BOND==5) ? LEFT_SITE(b)
                                              : RIGHT_SITE(b);
-                    close = sm[i1[site].back()] % N_BOND == 3
-                            || sm[i1[site].back()] % N_BOND == 4;
+                    close = !i1[site].empty() && (sm[i1[site].back()] % N_BOND == 3
+                            || sm[i1[site].back()] % N_BOND == 4);
                 } else {
                     continue;
                 }
@@ -294,7 +294,7 @@ void mc :: do_update() {
                 if (close) {
                     i2[site].push_back(i);
                     r[site][r[site].size()-1] *= weight[vtx]/n_el;
-                } else {
+                } else if (!i1[site].empty()){
                     i1[site].pop_back();
                     Nd[site].pop_back();
                     m[site].pop_back();
