@@ -219,6 +219,7 @@ void mc :: do_update() {
                 if (random01() < NB/T*weight[vtx]/(M-n)) {
                     sm[i] = N_BOND*b;
                     n++;
+                    n_Hubb++;
                 }
             } else {            // try inserting an H_6
                 int cocc = current_occ[LEFT_SITE(b)];
@@ -237,6 +238,7 @@ void mc :: do_update() {
                 if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
                     sm[i] = 0;
                     n--;
+                    n_Hubb--;
                 }
             } else if (sm[i] % N_BOND == 7) { // diagonal phonon operator
                 int cocc = current_occ[LEFT_SITE(b)];
@@ -326,16 +328,16 @@ void mc :: do_update() {
     r.clear();
 
     // directed loops electron update
-    if (n > 0) {
+    if (n_Hubb > 0) {
         // linked list construction
-        vector<int> vtx(n, -1);
-        vector<int> link(4*n, 0);
+        vector<int> vtx(n_Hubb, -1);
+        vector<int> link(4*n_Hubb, 0);
         vector<int> first(L, -1);
         vector<int> last(L, -1);
         current_state = state;
         uint p = 0;
-        for (uint i = 0; p < n; ++i) {
-            if (sm[i] == 0)
+        for (uint i = 0; p < n_Hubb; ++i) {
+            if (sm[i] == 0 || sm[i] % N_BOND > 2)
                 continue;
             // establish links
             if (first[LEFT_SITE(sm[i]/N_BOND)] == -1) {
@@ -393,9 +395,9 @@ void mc :: do_update() {
         int j, j0, ent_vtx, exit_leg, worm;
         double r;
         for (uint i = 0; i < N_loop; ++i) {
-            j0 = random0N(N_WORM*4*n);
-            worm = j0 / (4*n);
-            j0 %= 4*n;
+            j0 = random0N(N_WORM*4*n_Hubb);
+            worm = j0 / (4*n_Hubb);
+            j0 %= 4*n_Hubb;
             j = j0;
 
             // check if dublon worm can start from here
@@ -414,7 +416,7 @@ void mc :: do_update() {
                     do_update();
                     return;
                 }
-                assert(j/4 < (int)n);
+                assert(j/4 < (int)n_Hubb);
                 ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
                 r = random01();
                 for (exit_leg = 0; exit_leg < 4; ++exit_leg)
@@ -442,8 +444,8 @@ void mc :: do_update() {
 
         // mapping back to operator sequence
         p = 0;
-        for (uint i = 0; p < n; ++i) {
-            if (sm[i] == 0)
+        for (uint i = 0; p < n_Hubb; ++i) {
+            if (sm[i] == 0 || sm[i] > 2)
                 continue;
             sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
             ++p;
@@ -536,6 +538,7 @@ void mc :: init() {
     }
 
     n = 0;
+    n_Hubb = 0;
     sweep=0;
     M = (uint)(a * init_n_max);
     dublon_rejected = true;
@@ -561,6 +564,7 @@ void mc :: write(string dir) {
     d.write(occ);
     d.write(sm);
     d.write(n);
+    d.write(n_Hubb);
     d.write(dublon_rejected);
     d.write(avg_worm_len);
     d.write(worm_len_sample_size);
@@ -586,6 +590,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
+        d.read(n_Hubb);
         d.read(dublon_rejected);
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);
