@@ -35,12 +35,15 @@ private:
     uint init_n_max;
     uint loop_term;
     uint n;
-    double N_loop;
+    double vtx_visited;
+    uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
     vector<int> vtx_type;
     vector<double> prob;
     vector<int> ns;
+    double avg_worm_len;
+    uint worm_len_sample_size;
 
 public:    
     parser param;

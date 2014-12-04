@@ -32,7 +32,7 @@ mc :: mc (string dir) {
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
-    N_loop = param.value_or_default<double>("N_LOOP", 2.0);
+    vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
     assert(t > 0);
@@ -189,9 +189,13 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
-    vector<int> current_state(state);
+    // exiting thermalization stage
+    if (sweep == therm) {
+        N_loop = (uint)(vtx_visited / avg_worm_len * M);
+    }
 
     // diagonal update
+    vector<int> current_state(state);
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == 0) {   // identity operator
             int b = random0N(NB)+1;
@@ -306,7 +310,7 @@ void mc :: do_update() {
         // directed loop construction
         int j, j0, ent_vtx, exit_leg, worm;
         double r;
-        for (uint i = 0; i < N_loop*M; ++i) {
+        for (uint i = 0; i < N_loop; ++i) {
             j0 = random0N(N_WORM*4*n);
             worm = j0 / (4*n);
             j0 %= 4*n;
@@ -322,7 +326,8 @@ void mc :: do_update() {
                 }
             }
 
-            for (uint k = 0; ; ++k) {
+            uint k;
+            for (k = 0; ; ++k) {
                 if (k == loop_term*M) {
                     do_update();
                     return;
@@ -343,6 +348,11 @@ void mc :: do_update() {
                 j = link[j];
                 if (j == j0)    // loop closed (SS02, Fig. 4a)
                     break;
+            }
+            // logging worm length
+            if (sweep < therm && sweep >= therm/2) {
+                avg_worm_len *= 1.*worm_len_sample_size / (worm_len_sample_size+1);
+                avg_worm_len += 1.*k / (++worm_len_sample_size);
             }
         }
         link.clear();
@@ -447,6 +457,9 @@ void mc :: init() {
     sweep=0;
     M = (uint)(a * init_n_max);
     dublon_rejected = true;
+    avg_worm_len = 0;
+    worm_len_sample_size = 0;
+    N_loop = vtx_visited * M;
     sm.resize(M, 0);
 
     // add observables
@@ -466,6 +479,9 @@ void mc :: write(string dir) {
     d.write(sm);
     d.write(n);
     d.write(dublon_rejected);
+    d.write(avg_worm_len);
+    d.write(worm_len_sample_size);
+    d.write(N_loop);
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -487,6 +503,9 @@ bool mc :: read(string dir) {
         M = sm.size();
         d.read(n);
         d.read(dublon_rejected);
+        d.read(avg_worm_len);
+        d.read(worm_len_sample_size);
+        d.read(N_loop);
         d.close();
         return true;
     }
@@ -498,5 +517,9 @@ void mc :: write_output(string dir) {
     f.open(dir.c_str());
     f << "PARAMETERS" << endl;
     param.get_all(f);
+    f << "SIMULATION PROPERTIES" << endl;
+    f << "operator string max. length: " << M << endl;
+    f << "average worm length: " << avg_worm_len << endl;
+    f << "number of loops per MCS: " << N_loop << endl;
     measure.get_statistics(f);
 }
