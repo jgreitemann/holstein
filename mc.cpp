@@ -328,6 +328,7 @@ void mc :: do_update() {
     r.clear();
 
     // directed loops electron update
+    vector<bool> ph_el_op(L, false);
     if (n_Hubb > 0) {
         // linked list construction
         vector<int> vtx(n_Hubb, -1);
@@ -336,9 +337,23 @@ void mc :: do_update() {
         vector<int> last(L, -1);
         current_state = state;
         uint p = 0;
-        for (uint i = 0; p < n_Hubb; ++i) {
-            if (sm[i] == 0 || sm[i] % N_BOND > 2)
+        for (uint i = 0; p < n; ++i) {
+            if (sm[i] == 0)
                 continue;
+            if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 5) {
+                ph_el_op[LEFT_SITE(sm[i]/N_BOND)] = true;
+                p++;
+                continue;
+            }
+            if (sm[i] % N_BOND == 4 || sm[i] % N_BOND == 6) {
+                ph_el_op[RIGHT_SITE(sm[i]/N_BOND)] = true;
+                p++;
+                continue;
+            }
+            if (sm[i] % N_BOND == 7) {
+                p++;
+                continue;
+            }
             // establish links
             if (first[LEFT_SITE(sm[i]/N_BOND)] == -1) {
                 first[LEFT_SITE(sm[i]/N_BOND)] = 4 * p;
@@ -454,7 +469,7 @@ void mc :: do_update() {
         // updating the state, flipping states randomly on sites not
         // affected by the bond operators
         for (uint s = 0; s < L; ++s) {
-            if (first[s] == -1) {
+            if (first[s] == -1 && ph_el_op[s] == false) {
                 state[s] = random0N(4);
             } else {
                 uint leg = first[s] % 4;
@@ -463,9 +478,30 @@ void mc :: do_update() {
         }
         vtx.clear();
         first.clear();
-    } else { // empty operator sequence
+    } else { // no electron operators in the sequence
+        uint p = 0;
+        for (uint i = 0; p < n; ++i) {
+            if (sm[i] == 0)
+                continue;
+            if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 5) {
+                ph_el_op[LEFT_SITE(sm[i]/N_BOND)] = true;
+                p++;
+                continue;
+            }
+            if (sm[i] % N_BOND == 4 || sm[i] % N_BOND == 6) {
+                ph_el_op[RIGHT_SITE(sm[i]/N_BOND)] = true;
+                p++;
+                continue;
+            }
+            if (sm[i] % N_BOND == 7) {
+                p++;
+                continue;
+            }
+        }
         for (uint s = 0; s < L; ++s) {
-            state[s] = random0N(4);
+            if (ph_el_op[s] == false) {
+                state[s] = random0N(4);
+            }
         }
     }
 
