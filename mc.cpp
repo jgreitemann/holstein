@@ -504,7 +504,6 @@ void mc :: do_update() {
             }
         }
     }
-    ph_el_op.clear();
 
     ++sweep;
 }
