@@ -1,5 +1,4 @@
 #include "mc.h"
-#include <list>
 
 #define N_BOND 8                // number of bond operator flavors
 #define NB (L)                  // number of bonds
@@ -207,7 +206,8 @@ void mc :: do_update() {
         int m;
         double r;
     };
-    vector<Pair> subseq(1, {.i=0, .Nd=0, .m=0, .r=0.});
+    vector<vector<Pair> > subseq(L, vector<Pair>());
+    vector<int> initial_Nd(L, 0);
     vector<int> current_state(state);
     vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
@@ -273,7 +273,11 @@ void mc :: do_update() {
             }
             // append to the phonon subsequences
             if (sm[i] % N_BOND == 7) {
-                ++(subseq[LEFT_SITE(b)].back().Nd);
+                if (subseq[LEFT_SITE(b)].empty()) {
+                    ++initial_Nd[LEFT_SITE(b)];
+                } else {
+                    ++(subseq[LEFT_SITE(b)].back().Nd);
+                }
             } else {
                 int site;
                 if (sm[i] % N_BOND == 0) {
@@ -305,13 +309,113 @@ void mc :: do_update() {
     assert(n <= M); // You might need to increase "a" or the
                     // thermalization time if this assertion fails.
 
-    // transfer Nd to the back of the list
+    // transfer Nd to the back of the list & push front to the back
     for (uint s = 0; s < L; ++s) {
-        subseq[s].back().Nd += subseq[s].front().Nd;
-        subseq[s].pop_front();
+        subseq[s].back().Nd += initial_Nd[s];
+        subseq[s].push_back(subseq[s].front());
     }
 
     // subsequence phonon update
+    for (uint s = 0; s < L; ++s) {
+        vector<Node>::iterator i1, i2;
+        for (uint i = 0; i < subseq[s].size(); ++i) {
+            i = subseq.begin() + random0N(subseq[s].size());
+            i1 = i2++;
+            if (sm[i1->i] % N_BOND == 0 && sm[i2->i] % N_BOND == 0) {
+                if (random0N(2)) { // (H_1, H_1) -> (H_5, H_4)
+                    double prob = 0.25*g*g * i1->m / (i1->r*i2->r)
+                                  * pow(1.*(Np-i1->m+1)/(Np-i1->m), i1->Nd);
+                    if (random01() < prob) {
+                        int type = random0N(4);
+                        if (type / 2) { // H_5^R
+                            sm[i1->i] = s*N_BOND + 6;
+                        } else { // H_5^L
+                            sm[i1->i] = (s+1)*N_BOND + 5;
+                        }
+                        if (type % 2) { // H_4^R
+                            sm[i2->i] = s*N_BOND + 4;
+                        } else { // H_4^L
+                            sm[i2->i] = (s+1)*N_BOND + 3;
+                        }
+                        --(i2->m);
+                    }
+                } else { // (H_1, H_1) -> (H_4, H_5)
+                    double prob = 0.25*g*g * (i1->m+1) / (i1->r*i2->r)
+                                  * pow(1.*(Np-i1->m-1)/(Np-i1->m), i1->Nd);
+                    if (random01() < prob) {
+                        int type = random0N(4);
+                        if (type / 2) { // H_4^R
+                            sm[i1->i] = s*N_BOND + 4;
+                        } else { // H_4^L
+                            sm[i1->i] = (s+1)*N_BOND + 3;
+                        }
+                        if (type % 2) { // H_5^R
+                            sm[i2->i] = s*N_BOND + 6;
+                        } else { // H_5^L
+                            sm[i2->i] = (s+1)*N_BOND + 5;
+                        }
+                        ++(i2->m);
+                    }
+                }
+            } else if ((sm[i1->i] % N_BOND == 3 || sm[i1->i] % N_BOND == 4)
+                    && (sm[i2->i] % N_BOND == 5 || sm[i2->i] % N_BOND == 6)) {
+                if (random0N(2)) { // (H_4, H_5) -> (H_5, H_4)
+                    double prob = 1. * (i1->m) / (i1->m+1)
+                                  * pow(1.*(Np-i1->m+1)/(Np-i1->m-1), i1->Nd);
+                    if (random01() < prob) {
+                        int type = random0N(4);
+                        if (type / 2) { // H_5^R
+                            sm[i1->i] = s*N_BOND + 6;
+                        } else { // H_5^L
+                            sm[i1->i] = (s+1)*N_BOND + 5;
+                        }
+                        if (type % 2) { // H_4^R
+                            sm[i2->i] = s*N_BOND + 4;
+                        } else { // H_4^L
+                            sm[i2->i] = (s+1)*N_BOND + 3;
+                        }
+                        i2->m -= 2;
+                    }
+                } else { // (H_4, H_5) -> (H_1, H_1)
+                    double prob = 4./g/g / (i1->m+1) * (i1->r*i2->r)
+                                  * pow(1.*(Np-i1->m)/(Np-i1->m-1), i1->Nd);
+                    if (random01() < prob) {
+                        sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
+                        sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
+                        --(i2->m);
+                    }
+                }
+            } else if ((sm[i1->i] % N_BOND == 5 || sm[i1->i] % N_BOND == 6)
+                    && (sm[i2->i] % N_BOND == 3 || sm[i2->i] % N_BOND == 4)) {
+                if (random0N(2)) { // (H_5, H_4) -> (H_4, H_5)
+                    double prob = 1. / (i1->m) * (i1->m+1)
+                                  * pow(1.*(Np-i1->m-1)/(Np-i1->m+1), i1->Nd);
+                    if (random01() < prob) {
+                        int type = random0N(4);
+                        if (type / 2) { // H_4^R
+                            sm[i1->i] = s*N_BOND + 4;
+                        } else { // H_4^L
+                            sm[i1->i] = (s+1)*N_BOND + 3;
+                        }
+                        if (type % 2) { // H_5^R
+                            sm[i2->i] = s*N_BOND + 6;
+                        } else { // H_5^L
+                            sm[i2->i] = (s+1)*N_BOND + 5;
+                        }
+                        i2->m += 2;
+                    }
+                } else { // (H_5, H_4) -> (H_1, H_1)
+                    double prob = 4./g/g / i1->m * (i1->r*i2->r)
+                                  * pow(1.*(Np-i1->m)/(Np-i1->m+1), i1->Nd);
+                    if (random01() < prob) {
+                        sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
+                        sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
+                        ++(i2->m);
+                    }
+                }
+            }
+        }
+    }
     subseq.clear();
 
     // directed loops electron update
