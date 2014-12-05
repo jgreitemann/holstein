@@ -202,13 +202,12 @@ void mc :: do_update() {
 
     // diagonal update & subsequence construction
     struct Pair {
-        int i1;
-        int i2;
+        int i;
         int Nd;
         int m;
         double r;
     };
-    vector<Pair> subseq(1, {.i1=0, .i2=0, .Nd=0, .m=0, .r=0.});
+    vector<Pair> subseq(1, {.i=0, .Nd=0, .m=0, .r=0.});
     vector<int> current_state(state);
     vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
@@ -290,7 +289,7 @@ void mc :: do_update() {
                 }
                 int n_el = (current_state[site] & 1)
                            + (current_state[site] >> 1);
-                subseq[site].push_back({.i1=i, .Nd=0, .m=current_occ[site],
+                subseq[site].push_back({.i=i, .Nd=0, .m=current_occ[site],
                                         .r=weight[vtx]/n_el});
             }
         }
@@ -310,27 +309,6 @@ void mc :: do_update() {
     for (uint s = 0; s < L; ++s) {
         subseq[s].back().Nd += subseq[s].front().Nd;
         subseq[s].pop_front();
-    }
-
-    // form swappable pairs of subsequence elements
-    for (uint s = 0; s < L; ++s) {
-        subseq[s].push_back(subseq[s].front());
-        list<Node>::iterator sentinel = --subseq[s].end();
-        for (list<Node>::iterator it=subseq[s].begin(); it != sentinel;) {
-            list<Node>::iterator current = it++;
-            if ((sm[current->i1] % N_BOND == 0 && sm[it->i1] % N_BOND == 0)
-                || ((sm[current->i1]%N_BOND == 3 || sm[current->i1]%N_BOND == 4)
-                       && (sm[it->i1]%N_BOND == 5 || sm[it->i1]%N_BOND == 6))
-                || ((sm[current->i1]%N_BOND == 5 || sm[current->i1]%N_BOND == 6)
-                       && (sm[it->i1]%N_BOND == 3 || sm[it->i1]%N_BOND == 4)) {
-                current->i2 = it->i1;
-                current->r *= it->r;
-            } else {
-                subseq[s].erase(current);
-                continue;
-            }
-        }
-        subseq[s].pop_back();
     }
 
     // subsequence phonon update
