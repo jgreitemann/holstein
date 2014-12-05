@@ -1,4 +1,5 @@
 #include "mc.h"
+#include <list>
 
 #define N_BOND 8                // number of bond operator flavors
 #define NB (L)                  // number of bonds
@@ -199,13 +200,15 @@ void mc :: do_update() {
         N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
-    vector<vector<int> > i1(L, vector<int>());
-    vector<vector<int> > i2(L, vector<int>());
-    vector<vector<int> > Nd(L, vector<int>());
-    vector<vector<int> > m(L, vector<int>());
-    vector<vector<double> > r(L, vector<double>());
-
     // diagonal update & subsequence construction
+    struct Pair {
+        int i1;
+        int i2;
+        int Nd;
+        int m;
+        double r;
+    };
+    vector<Pair> subseq(1, {.i1=0, .i2=0, .Nd=0, .m=0, .r=0.});
     vector<int> current_state(state);
     vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
@@ -271,41 +274,24 @@ void mc :: do_update() {
             }
             // append to the phonon subsequences
             if (sm[i] % N_BOND == 7) {
-                Nd[LEFT_SITE(b)][Nd[LEFT_SITE(b)].size()-1]++;
+                ++(subseq[LEFT_SITE(b)].back().Nd);
             } else {
                 int site;
-                bool close;
                 if (sm[i] % N_BOND == 0) {
                     site = random0N(2) ? LEFT_SITE(b) : RIGHT_SITE(b);
-                    close = !i1[site].empty() && sm[i1[site].back()] % N_BOND == 0;
                 } else if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 4) {
                     site = (sm[i]%N_BOND==3) ? LEFT_SITE(b)
                                              : RIGHT_SITE(b);
-                    close = !i1[site].empty() && (sm[i1[site].back()] % N_BOND == 5
-                            || sm[i1[site].back()] % N_BOND == 6);
                 } else if (sm[i] % N_BOND == 5 || sm[i] % N_BOND == 6) {
                     site = (sm[i]%N_BOND==5) ? LEFT_SITE(b)
                                              : RIGHT_SITE(b);
-                    close = !i1[site].empty() && (sm[i1[site].back()] % N_BOND == 3
-                            || sm[i1[site].back()] % N_BOND == 4);
                 } else {
                     continue;
                 }
                 int n_el = (current_state[site] & 1)
                            + (current_state[site] >> 1);
-                if (close) {
-                    i2[site].push_back(i);
-                    r[site][r[site].size()-1] *= weight[vtx]/n_el;
-                } else if (!i1[site].empty()){
-                    i1[site].pop_back();
-                    Nd[site].pop_back();
-                    m[site].pop_back();
-                    r[site].pop_back();
-                }
-                i1[site].push_back(i);
-                Nd[site].push_back(0);
-                m[site].push_back(current_occ[site]);
-                r[site].push_back(weight[vtx]/n_el);
+                subseq[site].push_back({.i1=i, .Nd=0, .m=current_occ[site],
+                                        .r=weight[vtx]/n_el});
             }
         }
     }
@@ -320,12 +306,35 @@ void mc :: do_update() {
     assert(n <= M); // You might need to increase "a" or the
                     // thermalization time if this assertion fails.
 
+    // transfer Nd to the back of the list
+    for (uint s = 0; s < L; ++s) {
+        subseq[s].back().Nd += subseq[s].front().Nd;
+        subseq[s].pop_front();
+    }
+
+    // form swappable pairs of subsequence elements
+    for (uint s = 0; s < L; ++s) {
+        subseq[s].push_back(subseq[s].front());
+        list<Node>::iterator sentinel = --subseq[s].end();
+        for (list<Node>::iterator it=subseq[s].begin(); it != sentinel;) {
+            list<Node>::iterator current = it++;
+            if ((sm[current->i1] % N_BOND == 0 && sm[it->i1] % N_BOND == 0)
+                || ((sm[current->i1]%N_BOND == 3 || sm[current->i1]%N_BOND == 4)
+                       && (sm[it->i1]%N_BOND == 5 || sm[it->i1]%N_BOND == 6))
+                || ((sm[current->i1]%N_BOND == 5 || sm[current->i1]%N_BOND == 6)
+                       && (sm[it->i1]%N_BOND == 3 || sm[it->i1]%N_BOND == 4)) {
+                current->i2 = it->i1;
+                current->r *= it->r;
+            } else {
+                subseq[s].erase(current);
+                continue;
+            }
+        }
+        subseq[s].pop_back();
+    }
+
     // subsequence phonon update
-    i1.clear();
-    i2.clear();
-    Nd.clear();
-    m.clear();
-    r.clear();
+    subseq.clear();
 
     // directed loops electron update
     if (n_Hubb > 0) {
