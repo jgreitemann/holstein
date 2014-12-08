@@ -5,6 +5,8 @@
 #define COORD 2                 // coordination number
 #define LEFT_SITE(b) (b-1)      // lattice -
 #define RIGHT_SITE(b) ((b)%L)   //           geometry
+#define LEFT_BOND(s) ((s+L-1)%L+1)
+#define RIGHT_BOND(s) (s+1)
 #define N_WORM 3                // number of worm types
 
 #ifdef HEAT_BATH
@@ -16,6 +18,13 @@ inline int flipped_vtx(int vtx) {
                        ^ ((worm+1) << (2*exit_leg));
 }
 #endif
+
+struct Node {
+    int i;
+    int Nd;
+    int m;
+    double r;
+};
 
 mc :: mc (string dir) {
     // initialize job parameters
@@ -200,13 +209,7 @@ void mc :: do_update() {
     }
 
     // diagonal update & subsequence construction
-    struct Pair {
-        int i;
-        int Nd;
-        int m;
-        double r;
-    };
-    vector<vector<Pair> > subseq(L, vector<Pair>());
+    vector<vector<Node> > subseq(L, vector<Node>());
     vector<int> initial_Nd(L, 0);
     vector<int> current_state(state);
     vector<int> current_occ(occ);
@@ -271,7 +274,14 @@ void mc :: do_update() {
             } else if (sm[i] % N_BOND == 6) {
                 current_occ[RIGHT_SITE(b)]--;
             }
-            // append to the phonon subsequences
+        }
+        // append to the phonon subsequences
+        if (sm[i] != 0) {
+            int b = sm[i] / N_BOND;
+            int vtx = current_state[LEFT_SITE(b)]
+                      + (current_state[RIGHT_SITE(b)]<<2)
+                      + (current_state[LEFT_SITE(b)]<<6)
+                      + (current_state[RIGHT_SITE(b)]<<4);
             if (sm[i] % N_BOND == 7) {
                 if (subseq[LEFT_SITE(b)].empty()) {
                     ++initial_Nd[LEFT_SITE(b)];
@@ -293,8 +303,12 @@ void mc :: do_update() {
                 }
                 int n_el = (current_state[site] & 1)
                            + (current_state[site] >> 1);
-                subseq[site].push_back({.i=i, .Nd=0, .m=current_occ[site],
-                                        .r=weight[vtx]/n_el});
+                Node newNode;
+                newNode.i = i;
+                newNode.Nd = 0;
+                newNode.m = current_occ[site];
+                newNode.r = weight[vtx]/n_el;
+                subseq[site].push_back(newNode);
             }
         }
     }
@@ -311,15 +325,19 @@ void mc :: do_update() {
 
     // transfer Nd to the back of the list & push front to the back
     for (uint s = 0; s < L; ++s) {
-        subseq[s].back().Nd += initial_Nd[s];
-        subseq[s].push_back(subseq[s].front());
+        if (subseq[s].size() >= 2) {
+            subseq[s].back().Nd += initial_Nd[s];
+            subseq[s].push_back(subseq[s].front());
+        } else {
+            subseq[s].clear();
+        }
     }
 
     // subsequence phonon update
     for (uint s = 0; s < L; ++s) {
         vector<Node>::iterator i1, i2;
         for (uint i = 0; i < subseq[s].size(); ++i) {
-            i = subseq.begin() + random0N(subseq[s].size());
+            i2 = subseq[s].begin() + random0N(subseq[s].size()-1);
             i1 = i2++;
             if (sm[i1->i] % N_BOND == 0 && sm[i2->i] % N_BOND == 0) {
                 if (random0N(2)) { // (H_1, H_1) -> (H_5, H_4)
@@ -328,16 +346,17 @@ void mc :: do_update() {
                     if (random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_5^R
-                            sm[i1->i] = s*N_BOND + 6;
+                            sm[i1->i] = LEFT_BOND(s)*N_BOND + 6;
                         } else { // H_5^L
-                            sm[i1->i] = (s+1)*N_BOND + 5;
+                            sm[i1->i] = RIGHT_BOND(s)*N_BOND + 5;
                         }
                         if (type % 2) { // H_4^R
-                            sm[i2->i] = s*N_BOND + 4;
+                            sm[i2->i] = LEFT_BOND(s)*N_BOND + 4;
                         } else { // H_4^L
-                            sm[i2->i] = (s+1)*N_BOND + 3;
+                            sm[i2->i] = RIGHT_BOND(s)*N_BOND + 3;
                         }
                         --(i2->m);
+                        n_Hubb -= 2;
                     }
                 } else { // (H_1, H_1) -> (H_4, H_5)
                     double prob = 0.25*g*g * (i1->m+1) / (i1->r*i2->r)
@@ -345,16 +364,17 @@ void mc :: do_update() {
                     if (random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_4^R
-                            sm[i1->i] = s*N_BOND + 4;
+                            sm[i1->i] = LEFT_BOND(s)*N_BOND + 4;
                         } else { // H_4^L
-                            sm[i1->i] = (s+1)*N_BOND + 3;
+                            sm[i1->i] = RIGHT_BOND(s)*N_BOND + 3;
                         }
                         if (type % 2) { // H_5^R
-                            sm[i2->i] = s*N_BOND + 6;
+                            sm[i2->i] = LEFT_BOND(s)*N_BOND + 6;
                         } else { // H_5^L
-                            sm[i2->i] = (s+1)*N_BOND + 5;
+                            sm[i2->i] = RIGHT_BOND(s)*N_BOND + 5;
                         }
                         ++(i2->m);
+                        n_Hubb -= 2;
                     }
                 }
             } else if ((sm[i1->i] % N_BOND == 3 || sm[i1->i] % N_BOND == 4)
@@ -365,14 +385,14 @@ void mc :: do_update() {
                     if (random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_5^R
-                            sm[i1->i] = s*N_BOND + 6;
+                            sm[i1->i] = LEFT_BOND(s)*N_BOND + 6;
                         } else { // H_5^L
-                            sm[i1->i] = (s+1)*N_BOND + 5;
+                            sm[i1->i] = RIGHT_BOND(s)*N_BOND + 5;
                         }
                         if (type % 2) { // H_4^R
-                            sm[i2->i] = s*N_BOND + 4;
+                            sm[i2->i] = LEFT_BOND(s)*N_BOND + 4;
                         } else { // H_4^L
-                            sm[i2->i] = (s+1)*N_BOND + 3;
+                            sm[i2->i] = RIGHT_BOND(s)*N_BOND + 3;
                         }
                         i2->m -= 2;
                     }
@@ -383,6 +403,7 @@ void mc :: do_update() {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
                         sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
                         --(i2->m);
+                        n_Hubb += 2;
                     }
                 }
             } else if ((sm[i1->i] % N_BOND == 5 || sm[i1->i] % N_BOND == 6)
@@ -393,14 +414,14 @@ void mc :: do_update() {
                     if (random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_4^R
-                            sm[i1->i] = s*N_BOND + 4;
+                            sm[i1->i] = LEFT_BOND(s)*N_BOND + 4;
                         } else { // H_4^L
-                            sm[i1->i] = (s+1)*N_BOND + 3;
+                            sm[i1->i] = RIGHT_BOND(s)*N_BOND + 3;
                         }
                         if (type % 2) { // H_5^R
-                            sm[i2->i] = s*N_BOND + 6;
+                            sm[i2->i] = LEFT_BOND(s)*N_BOND + 6;
                         } else { // H_5^L
-                            sm[i2->i] = (s+1)*N_BOND + 5;
+                            sm[i2->i] = RIGHT_BOND(s)*N_BOND + 5;
                         }
                         i2->m += 2;
                     }
@@ -411,6 +432,7 @@ void mc :: do_update() {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
                         sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
                         ++(i2->m);
+                        n_Hubb += 2;
                     }
                 }
             }
@@ -536,7 +558,7 @@ void mc :: do_update() {
         // mapping back to operator sequence
         p = 0;
         for (uint i = 0; p < n_Hubb; ++i) {
-            if (sm[i] == 0 || sm[i] > 2)
+            if (sm[i] == 0 || sm[i] % N_BOND > 2)
                 continue;
             sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
             ++p;
