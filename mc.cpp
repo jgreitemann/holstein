@@ -601,8 +601,7 @@ void mc :: do_measurement() {
         return;
 
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
-    double energy = -T * n + (C + epsilon)*NB + U/4*COORD*(N_up+N_down)
-                    -U*NB/4 - 2*mu*(L-N_up-N_down);
+    double energy = -T * n + L*C + L*omega*Np;
 
     // add data to measurement
     measure.add("Energy", energy);
@@ -720,6 +719,8 @@ void mc :: write_output(string dir) {
     f << "PARAMETERS" << endl;
     param.get_all(f);
     f << "SIMULATION PROPERTIES" << endl;
+    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    f << "C+epsilon = " << C+epsilon << endl;
     f << "operator string max. length: " << M << endl;
     f << "average worm length: " << avg_worm_len << endl;
     f << "number of loops per MCS: " << N_loop << endl;
