@@ -214,44 +214,56 @@ void mc :: do_update() {
     vector<int> current_state(state);
     vector<int> current_occ(occ);
     for (uint i = 0; i < M; ++i) {
-        if (sm[i] == 0) {   // identity operator
+        // electronic diagonal update
+        if (sm[i] == 0) { // identity operator
             int b = random0N(NB)+1;
-            if (random0N(2)) {  // try inserting an H_1
-                int vtx = current_state[LEFT_SITE(b)]
-                          + (current_state[RIGHT_SITE(b)]<<2)
-                          + (current_state[LEFT_SITE(b)]<<6)
-                          + (current_state[RIGHT_SITE(b)]<<4);
-                if (random01() < NB/T*weight[vtx]/(M-n)) {
-                    sm[i] = N_BOND*b;
-                    n++;
-                    n_Hubb++;
-                }
-            } else {            // try inserting an H_6
-                int cocc = current_occ[LEFT_SITE(b)];
-                if (random01() < NB/T*omega*(Np-cocc)/(M-n)) {
-                    sm[i] = N_BOND*b + 7;
-                    n++;
-                }
+            int vtx = current_state[LEFT_SITE(b)]
+                      + (current_state[RIGHT_SITE(b)]<<2)
+                      + (current_state[LEFT_SITE(b)]<<6)
+                      + (current_state[RIGHT_SITE(b)]<<4);
+            if (random01() < NB/T*weight[vtx]/(M-n)) {
+                sm[i] = N_BOND*b;
+                n++;
+                n_Hubb++;
             }
-        } else {
+        } else if (sm[i] % N_BOND == 0) { // diagonal Hubbard U
             int b = sm[i] / N_BOND;
             int vtx = current_state[LEFT_SITE(b)]
                       + (current_state[RIGHT_SITE(b)]<<2)
                       + (current_state[LEFT_SITE(b)]<<6)
                       + (current_state[RIGHT_SITE(b)]<<4);
-            if (sm[i] % N_BOND == 0) {   // diagonal Hubbard U
-                if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
-                    sm[i] = 0;
-                    n--;
-                    n_Hubb--;
-                }
-            } else if (sm[i] % N_BOND == 7) { // diagonal phonon operator
-                int cocc = current_occ[LEFT_SITE(b)];
-                if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
-                    sm[i] = 0;
-                    n--;
-                }
-            } else if (sm[i] % N_BOND == 1) {   // spin up hopping
+            if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
+                sm[i] = 0;
+                n--;
+                n_Hubb--;
+            }
+        }
+
+        // phononic diagonal update
+        if (sm[i] == 0) { // identity operator
+            int b = random0N(NB)+1;
+            int cocc = current_occ[LEFT_SITE(b)];
+            if (random01() < NB/T*omega*(Np-cocc)/(M-n)) {
+                sm[i] = N_BOND*b + 7;
+                n++;
+            }
+        } else if (sm[i] % N_BOND == 7) {
+            int b = sm[i] / N_BOND;
+            int cocc = current_occ[LEFT_SITE(b)];
+            if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
+                sm[i] = 0;
+                n--;
+            }
+        }
+
+        if (sm[i] != 0) {
+            // propagation of state
+            int b = sm[i] / N_BOND;
+            int vtx = current_state[LEFT_SITE(b)]
+                      + (current_state[RIGHT_SITE(b)]<<2)
+                      + (current_state[LEFT_SITE(b)]<<6)
+                      + (current_state[RIGHT_SITE(b)]<<4);
+            if (sm[i] % N_BOND == 1) {   // spin up hopping
                 int left_up = current_state[LEFT_SITE(b)] & 1;
                 current_state[LEFT_SITE(b)] =
                     (current_state[LEFT_SITE(b)] & 2)
@@ -274,14 +286,8 @@ void mc :: do_update() {
             } else if (sm[i] % N_BOND == 6) {
                 current_occ[RIGHT_SITE(b)]--;
             }
-        }
-        // append to the phonon subsequences
-        if (sm[i] != 0) {
-            int b = sm[i] / N_BOND;
-            int vtx = current_state[LEFT_SITE(b)]
-                      + (current_state[RIGHT_SITE(b)]<<2)
-                      + (current_state[LEFT_SITE(b)]<<6)
-                      + (current_state[RIGHT_SITE(b)]<<4);
+
+            // append to the phonon subsequences
             if (sm[i] % N_BOND == 7) {
                 if (subseq[LEFT_SITE(b)].empty()) {
                     ++initial_Nd[LEFT_SITE(b)];
@@ -361,7 +367,7 @@ void mc :: do_update() {
                 } else { // (H_1, H_1) -> (H_4, H_5)
                     double prob = 0.25*g*g * (i1->m+1) / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m), i1->Nd);
-                    if (random01() < prob) {
+                    if (i1->m < Np && random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_4^R
                             sm[i1->i] = LEFT_BOND(s)*N_BOND + 4;
@@ -411,7 +417,7 @@ void mc :: do_update() {
                 if (random0N(2)) { // (H_5, H_4) -> (H_4, H_5)
                     double prob = 1. / (i1->m) * (i1->m+1)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m+1), i1->Nd);
-                    if (random01() < prob) {
+                    if (i1->m < Np && random01() < prob) {
                         int type = random0N(4);
                         if (type / 2) { // H_4^R
                             sm[i1->i] = LEFT_BOND(s)*N_BOND + 4;
@@ -438,6 +444,15 @@ void mc :: do_update() {
             }
         }
     }
+
+    // mapping back to phonon state
+    for (uint s = 0; s < L; ++s) {
+        if (subseq[s].empty()) {
+            occ[s] = 0;
+        } else {
+            occ[s] = subseq[s].front().m;
+        }
+    }
     subseq.clear();
 
     // directed loops electron update
@@ -450,6 +465,7 @@ void mc :: do_update() {
         current_state = state;
         uint p = 0;
         for (uint i = 0; p < n_Hubb; ++i) {
+            assert(i < M);
             if (sm[i] == 0 || sm[i] % N_BOND > 2)
                 continue;
             // establish links
@@ -601,17 +617,19 @@ void mc :: do_measurement() {
         return;
 
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
-    double energy = -T * n + L*C + L*omega*Np;
+    double energy = -T * n + NB*(C+epsilon) + L*omega*Np;
 
     // add data to measurement
     measure.add("Energy", energy);
     measure.add("n_i", ns);
-    
+
     // calculate and measure density-density correlation
     for (uint s = L; s > 0; --s) {
         ns[s-1] *= ns[0];
     }
     measure.add("n_1n_i", ns);
+
+    measure.add("m_i", occ);
 }
 
 
@@ -666,6 +684,7 @@ void mc :: init() {
     measure.add_observable("Energy");
     measure.add_vectorobservable("n_i", L);
     measure.add_vectorobservable("n_1n_i", L);
+    measure.add_vectorobservable("m_i", L);
 }
 
 void mc :: write(string dir) {
