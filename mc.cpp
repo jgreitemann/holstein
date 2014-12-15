@@ -257,12 +257,41 @@ void mc :: do_update() {
         }
 
         if (sm[i] != 0) {
-            // propagation of state
             int b = sm[i] / N_BOND;
-            int vtx = current_state[LEFT_SITE(b)]
-                      + (current_state[RIGHT_SITE(b)]<<2)
-                      + (current_state[LEFT_SITE(b)]<<6)
-                      + (current_state[RIGHT_SITE(b)]<<4);
+
+            // append to the phonon subsequences
+            if (sm[i] % N_BOND == 7) {
+                if (subseq[LEFT_SITE(b)].empty()) {
+                    ++initial_Nd[LEFT_SITE(b)];
+                } else {
+                    ++(subseq[LEFT_SITE(b)].back().Nd);
+                }
+            } else if (sm[i] % N_BOND != 1 && sm[i] % N_BOND != 2) {
+                int site;
+                if (sm[i] % N_BOND == 0) {
+                    site = random0N(2) ? LEFT_SITE(b) : RIGHT_SITE(b);
+                } else if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 4) {
+                    site = (sm[i]%N_BOND==3) ? LEFT_SITE(b)
+                                             : RIGHT_SITE(b);
+                } else if (sm[i] % N_BOND == 5 || sm[i] % N_BOND == 6) {
+                    site = (sm[i]%N_BOND==5) ? LEFT_SITE(b)
+                                             : RIGHT_SITE(b);
+                }
+                int vtx = current_state[LEFT_SITE(b)]
+                        + (current_state[RIGHT_SITE(b)]<<2)
+                        + (current_state[LEFT_SITE(b)]<<6)
+                        + (current_state[RIGHT_SITE(b)]<<4);
+                int n_el = (current_state[site] & 1)
+                           + (current_state[site] >> 1);
+                Node newNode;
+                newNode.i = i;
+                newNode.Nd = 0;
+                newNode.m = current_occ[site];
+                newNode.r = weight[vtx]/n_el;
+                subseq[site].push_back(newNode);
+            }
+
+            // propagation of state
             if (sm[i] % N_BOND == 1) {   // spin up hopping
                 int left_up = current_state[LEFT_SITE(b)] & 1;
                 current_state[LEFT_SITE(b)] =
@@ -286,54 +315,15 @@ void mc :: do_update() {
             } else if (sm[i] % N_BOND == 6) {
                 current_occ[RIGHT_SITE(b)]--;
             }
-
-            // append to the phonon subsequences
-            if (sm[i] % N_BOND == 7) {
-                if (subseq[LEFT_SITE(b)].empty()) {
-                    ++initial_Nd[LEFT_SITE(b)];
-                } else {
-                    ++(subseq[LEFT_SITE(b)].back().Nd);
-                }
-            } else {
-                int site;
-                if (sm[i] % N_BOND == 0) {
-                    site = random0N(2) ? LEFT_SITE(b) : RIGHT_SITE(b);
-                } else if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 4) {
-                    site = (sm[i]%N_BOND==3) ? LEFT_SITE(b)
-                                             : RIGHT_SITE(b);
-                } else if (sm[i] % N_BOND == 5 || sm[i] % N_BOND == 6) {
-                    site = (sm[i]%N_BOND==5) ? LEFT_SITE(b)
-                                             : RIGHT_SITE(b);
-                } else {
-                    continue;
-                }
-                int n_el = (current_state[site] & 1)
-                           + (current_state[site] >> 1);
-                Node newNode;
-                newNode.i = i;
-                newNode.Nd = 0;
-                newNode.m = current_occ[site];
-                newNode.r = weight[vtx]/n_el;
-                subseq[site].push_back(newNode);
-            }
         }
     }
     current_state.clear();
     current_occ.clear();
 
-    // adjust M during thermalization
-    if (!is_thermalized() && a*n > M) {
-        M = a*n;
-        sm.resize(M, 0);
-    }
-    assert(n <= M); // You might need to increase "a" or the
-                    // thermalization time if this assertion fails.
-
     // transfer Nd to the back of the list & push front to the back
     for (uint s = 0; s < L; ++s) {
         if (subseq[s].size() >= 2) {
             subseq[s].back().Nd += initial_Nd[s];
-            subseq[s].push_back(subseq[s].front());
         } else {
             subseq[s].clear();
         }
@@ -343,8 +333,11 @@ void mc :: do_update() {
     for (uint s = 0; s < L; ++s) {
         vector<Node>::iterator i1, i2;
         for (uint i = 0; i < subseq[s].size(); ++i) {
-            i2 = subseq[s].begin() + random0N(subseq[s].size()-1);
+            i2 = subseq[s].begin() + random0N(subseq[s].size());
             i1 = i2++;
+            if (i2 == subseq[s].end()) {
+                i2 = subseq[s].begin();
+            }
             if (sm[i1->i] % N_BOND == 0 && sm[i2->i] % N_BOND == 0) {
                 if (random0N(2)) { // (H_1, H_1) -> (H_5, H_4)
                     double prob = 0.25*g*g * i1->m / (i1->r*i2->r)
@@ -454,6 +447,14 @@ void mc :: do_update() {
         }
     }
     subseq.clear();
+
+    // adjust M during thermalization
+    if (!is_thermalized() && a*n > M) {
+        M = a*n;
+        sm.resize(M, 0);
+    }
+    assert(n <= M); // You might need to increase "a" or the
+                    // thermalization time if this assertion fails.
 
     // directed loops electron update
     if (n_Hubb > 0) {
