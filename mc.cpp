@@ -340,7 +340,7 @@ void mc :: do_update() {
             }
             if (sm[i1->i] % N_BOND == 0 && sm[i2->i] % N_BOND == 0) {
                 if (random0N(2)) { // (H_1, H_1) -> (H_5, H_4)
-                    double prob = 0.25*g*g * i1->m / (i1->r*i2->r)
+                    double prob = g*g * i1->m / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m), i1->Nd);
                     if (random01() < prob) {
                         int type = random0N(4);
@@ -358,7 +358,7 @@ void mc :: do_update() {
                         n_Hubb -= 2;
                     }
                 } else { // (H_1, H_1) -> (H_4, H_5)
-                    double prob = 0.25*g*g * (i1->m+1) / (i1->r*i2->r)
+                    double prob = g*g * (i1->m+1) / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m), i1->Nd);
                     if (i1->m < Np && random01() < prob) {
                         int type = random0N(4);
@@ -396,7 +396,7 @@ void mc :: do_update() {
                         i2->m -= 2;
                     }
                 } else { // (H_4, H_5) -> (H_1, H_1)
-                    double prob = 4./g/g / (i1->m+1) * (i1->r*i2->r)
+                    double prob = 1./g/g / (i1->m+1) * (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m)/(Np-i1->m-1), i1->Nd);
                     if (random01() < prob) {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
@@ -425,7 +425,7 @@ void mc :: do_update() {
                         i2->m += 2;
                     }
                 } else { // (H_5, H_4) -> (H_1, H_1)
-                    double prob = 4./g/g / i1->m * (i1->r*i2->r)
+                    double prob = 1./g/g / i1->m * (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m)/(Np-i1->m+1), i1->Nd);
                     if (random01() < prob) {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
