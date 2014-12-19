@@ -332,7 +332,9 @@ void mc :: do_update() {
     // subsequence phonon update
     for (uint s = 0; s < L; ++s) {
         vector<Node>::iterator i1, i2;
-        for (uint i = 0; i < subseq[s].size(); ++i) {
+        if (subseq[s].size() < 2)
+            continue;
+        for (uint i = 0; i < M/L; ++i) {
             i2 = subseq[s].begin() + random0N(subseq[s].size());
             i1 = i2++;
             if (i2 == subseq[s].end()) {
