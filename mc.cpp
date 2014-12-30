@@ -442,9 +442,7 @@ void mc :: do_update() {
 
     // mapping back to phonon state
     for (uint s = 0; s < L; ++s) {
-        if (subseq[s].empty()) {
-            occ[s] = 0;
-        } else {
+        if (!subseq[s].empty()) {
             occ[s] = subseq[s].front().m;
         }
     }
