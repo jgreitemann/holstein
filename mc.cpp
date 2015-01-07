@@ -224,7 +224,7 @@ void mc :: do_update() {
             if (random01() < NB/T*weight[vtx]/(M-n)) {
                 sm[i] = N_BOND*b;
                 n++;
-                n_Hubb++;
+                n_list++;
             }
         } else if (sm[i] % N_BOND == 0) { // diagonal Hubbard U
             int b = sm[i] / N_BOND;
@@ -235,7 +235,7 @@ void mc :: do_update() {
             if (random01() < (M-n+1)/(NB/T*weight[vtx])) {
                 sm[i] = 0;
                 n--;
-                n_Hubb--;
+                n_list--;
             }
         }
 
@@ -357,7 +357,6 @@ void mc :: do_update() {
                             sm[i2->i] = RIGHT_BOND(s)*N_BOND + 3;
                         }
                         --(i2->m);
-                        n_Hubb -= 2;
                     }
                 } else { // (H_1, H_1) -> (H_4, H_5)
                     double prob = g*g * (i1->m+1) / (i1->r*i2->r)
@@ -375,7 +374,6 @@ void mc :: do_update() {
                             sm[i2->i] = RIGHT_BOND(s)*N_BOND + 5;
                         }
                         ++(i2->m);
-                        n_Hubb -= 2;
                     }
                 }
             } else if ((sm[i1->i] % N_BOND == 3 || sm[i1->i] % N_BOND == 4)
@@ -404,7 +402,6 @@ void mc :: do_update() {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
                         sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
                         --(i2->m);
-                        n_Hubb += 2;
                     }
                 }
             } else if ((sm[i1->i] % N_BOND == 5 || sm[i1->i] % N_BOND == 6)
@@ -433,7 +430,6 @@ void mc :: do_update() {
                         sm[i1->i] = (sm[i1->i]/N_BOND) * N_BOND;
                         sm[i2->i] = (sm[i2->i]/N_BOND) * N_BOND;
                         ++(i2->m);
-                        n_Hubb += 2;
                     }
                 }
             }
@@ -457,17 +453,18 @@ void mc :: do_update() {
                     // thermalization time if this assertion fails.
 
     // directed loops electron update
-    if (n_Hubb > 0) {
+    if (n_list > 0) {
         // linked list construction
-        vector<int> vtx(n_Hubb, -1);
-        vector<int> link(4*n_Hubb, 0);
+        vector<int> vtx(n_list, -1);
+        vector<char> lock(n_list, 0);
+        vector<int> link(4*n_list, 0);
         vector<int> first(L, -1);
         vector<int> last(L, -1);
         current_state = state;
         uint p = 0;
-        for (uint i = 0; p < n_Hubb; ++i) {
+        for (uint i = 0; p < n_list; ++i) {
             assert(i < M);
-            if (sm[i] == 0 || sm[i] % N_BOND > 2)
+            if (sm[i] == 0 || sm[i] % N_BOND == 7)
                 continue;
             // establish links
             if (first[LEFT_SITE(sm[i]/N_BOND)] == -1) {
@@ -511,6 +508,12 @@ void mc :: do_update() {
             vtx[p] += (current_state[RIGHT_SITE(sm[i]/N_BOND)] << 4)
                       + (current_state[LEFT_SITE(sm[i]/N_BOND)] << 6);
 
+            if (sm[i] % N_BOND == 3 || sm[i] % N_BOND == 5) {
+                lock[p] = 1; // require at least one electron on left site
+            } else if (sm[i] % N_BOND == 4 || sm[i] % N_BOND == 6) {
+                lock[p] = 2; // require at least one electron on right site
+            }
+
             ++p;
         }
         for (uint s = 0; s < L; ++s) {
@@ -525,14 +528,19 @@ void mc :: do_update() {
         int j, j0, ent_vtx, exit_leg, worm;
         double r;
         for (uint i = 0; i < N_loop; ++i) {
-            j0 = random0N(N_WORM*4*n_Hubb);
-            worm = j0 / (4*n_Hubb);
-            j0 %= 4*n_Hubb;
+            j0 = random0N(N_WORM*4*n_list);
+            worm = j0 / (4*n_list);
+            j0 %= 4*n_list;
             j = j0;
+
+            // check if worm can start from here in case of locking
+            int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
+            if (ent_state == 0 && lock[j0/4] != 0) {
+                continue;
+            }
 
             // check if dublon worm can start from here
             if (worm == 2) {
-                int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
                 dublon_rejected = (ent_state & 1) ^ (ent_state >> 1);
                 if (dublon_rejected) {
                     // IMPORTANT: this has to be counted as a loop
@@ -546,13 +554,25 @@ void mc :: do_update() {
                     do_update();
                     return;
                 }
-                assert(j/4 < (int)n_Hubb);
-                ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
-                r = random01();
-                for (exit_leg = 0; exit_leg < 4; ++exit_leg)
-                    if (r < prob[(exit_leg << 10) | ent_vtx])
-                        break;
-                assert(exit_leg < 4); // assert that break was called
+                assert(j/4 < (int)n_list);
+                if (lock[j/4] != 0) {
+                    if (lock[j/4] == (((j%4) & 1) ^ ((j%4) >> 1))+1) {
+                        if ((((vtx[j/4] >> 2*(j%4)) & 3) ^ (worm+1)) == 0) {
+                            exit_leg = j%4; // bounce
+                        } else {
+                            exit_leg = (j%4) ^ 3; // continue straight
+                        }
+                    } else {
+                        exit_leg = (j%4) ^ 3; // continue straight
+                    }
+                } else {
+                    ent_vtx = (worm << 12) | ((j%4) << 8) | vtx[j/4];
+                    r = random01();
+                    for (exit_leg = 0; exit_leg < 4; ++exit_leg)
+                        if (r < prob[(exit_leg << 10) | ent_vtx])
+                            break;
+                    assert(exit_leg < 4); // assert that break was called
+                }
                 // flip the vertex:
                 vtx[j/4] ^= ((worm+1) << 2*(j%4))
                             ^ ((worm+1) << 2*exit_leg);
@@ -571,13 +591,15 @@ void mc :: do_update() {
         }
         link.clear();
         last.clear();
+        lock.clear();
 
         // mapping back to operator sequence
         p = 0;
-        for (uint i = 0; p < n_Hubb; ++i) {
-            if (sm[i] == 0 || sm[i] % N_BOND > 2)
+        for (uint i = 0; p < n_list; ++i) {
+            if (sm[i] == 0 || sm[i] % N_BOND == 7)
                 continue;
-            sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
+            if (sm[i] % N_BOND <= 2)
+                sm[i] = N_BOND*(sm[i]/N_BOND) + vtx_type[vtx[p]] - 1;
             ++p;
         }
 
@@ -669,7 +691,7 @@ void mc :: init() {
     }
 
     n = 0;
-    n_Hubb = 0;
+    n_list = 0;
     sweep=0;
     M = (uint)(a * init_n_max);
     dublon_rejected = true;
@@ -696,7 +718,7 @@ void mc :: write(string dir) {
     d.write(occ);
     d.write(sm);
     d.write(n);
-    d.write(n_Hubb);
+    d.write(n_list);
     d.write(dublon_rejected);
     d.write(avg_worm_len);
     d.write(worm_len_sample_size);
@@ -722,7 +744,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
-        d.read(n_Hubb);
+        d.read(n_list);
         d.read(dublon_rejected);
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);
