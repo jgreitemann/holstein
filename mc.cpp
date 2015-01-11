@@ -534,6 +534,7 @@ void mc :: do_update() {
             j = j0;
 
             // check if dublon worm can start from here
+            int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
             if (worm == 2) {
                 dublon_rejected = (ent_state & 1) ^ (ent_state >> 1);
                 if (dublon_rejected) {
@@ -553,6 +554,7 @@ void mc :: do_update() {
                     if (lock[j/4] == (((j%4) & 1) ^ ((j%4) >> 1))+1) {
                         if ((((vtx[j/4] >> 2*(j%4)) & 3) ^ (worm+1)) == 0) {
                             exit_leg = j%4; // bounce
+                            --k; // do not count bounces into the worm length
                         } else {
                             exit_leg = (j%4) ^ 3; // continue straight
                         }
