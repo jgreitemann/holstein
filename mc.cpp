@@ -533,12 +533,6 @@ void mc :: do_update() {
             j0 %= 4*n_list;
             j = j0;
 
-            // check if worm can start from here in case of locking
-            int ent_state = (vtx[j0/4] >> (2*(j0%4))) & 3;
-            if (ent_state == 0 && lock[j0/4] != 0) {
-                continue;
-            }
-
             // check if dublon worm can start from here
             if (worm == 2) {
                 dublon_rejected = (ent_state & 1) ^ (ent_state >> 1);
