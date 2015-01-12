@@ -554,7 +554,6 @@ void mc :: do_update() {
                     if (lock[j/4] == (((j%4) & 1) ^ ((j%4) >> 1))+1) {
                         if ((((vtx[j/4] >> 2*(j%4)) & 3) ^ (worm+1)) == 0) {
                             exit_leg = j%4; // bounce
-                            --k; // do not count bounces into the worm length
                         } else {
                             exit_leg = (j%4) ^ 3; // continue straight
                         }
@@ -568,6 +567,10 @@ void mc :: do_update() {
                         if (r < prob[(exit_leg << 10) | ent_vtx])
                             break;
                     assert(exit_leg < 4); // assert that break was called
+                }
+                // do not count bounces into the worm length
+                if (j%4 == exit_leg) {
+                    --k;
                 }
                 // flip the vertex:
                 vtx[j/4] ^= ((worm+1) << 2*(j%4))
