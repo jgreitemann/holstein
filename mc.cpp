@@ -757,13 +757,13 @@ void mc :: write_output(string dir) {
     // add evalables
     ofstream f;
     f.open(dir.c_str());
-    /*f << "SIMULATION PROPERTIES" << endl;
+    f << "PARAMETERS" << endl;
+    param.get_all(f);
+    measure.get_statistics(f);
+    f << "SIMULATION PROPERTIES" << endl;
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
     f << "C+epsilon = " << C+epsilon << endl;
     f << "operator string max. length: " << M << endl;
     f << "average worm length: " << avg_worm_len << endl;
-    f << "number of loops per MCS: " << N_loop << endl;*/
-    f << "PARAMETERS" << endl;
-    param.get_all(f);
-    measure.get_statistics(f);
+    f << "number of loops per MCS: " << N_loop << endl;
 }
