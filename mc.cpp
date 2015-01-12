@@ -543,7 +543,7 @@ void mc :: do_update() {
                 }
             }
 
-            uint k;
+            int k;
             for (k = 0; ; ++k) {
                 if (k == loop_term*M) {
                     do_update();
