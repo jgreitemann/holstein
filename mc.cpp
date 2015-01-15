@@ -555,7 +555,15 @@ void mc :: do_update() {
                         if ((((vtx[j/4] >> 2*(j%4)) & 3) ^ (worm+1)) == 0) {
                             exit_leg = j%4; // bounce
                         } else {
-                            exit_leg = (j%4) ^ 3; // continue straight
+                            if (((vtx[j/4] >> 2*(j%4)) & 3) == 3) {
+                                if (random0N(2)) {
+                                    exit_leg = (j%4) ^ 3; // continue straight
+                                } else {
+                                    exit_leg = j%4; // bounce
+                                }
+                            } else {
+                                exit_leg = (j%4) ^ 3; // continue straight
+                            }
                         }
                     } else {
                         exit_leg = (j%4) ^ 3; // continue straight
