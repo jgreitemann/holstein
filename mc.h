@@ -39,7 +39,6 @@ private:
     uint init_n_max;
     uint loop_term;
     uint n;
-    uint n_list;
     double vtx_visited;
     uint N_loop;
     bool dublon_rejected;
