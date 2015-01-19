@@ -70,7 +70,9 @@ mc :: mc (string dir) {
                      t
                  };
     for (uint i = 0; i < 7; ++i) {
-        assert(W[i] >= 0);
+        assert(W[i] >= -1e-14);
+        if (W[i] < 0)
+            W[i] = 0.;
     }
 
 #ifndef HEAT_BATH
