@@ -159,7 +159,7 @@ mc :: mc (string dir) {
         if (vtx >= (N_WORM << 12)) {
             continue;
         }
-        if (i >= 6) {    // 2x2 group
+        if (i >= 6 || weight[vtx & 255] == 0.) {    // 2x2 group
             prob[vtx] = 1.;
         } else {
             prob[vtx] = a[j][i] / weight[vtx & 255];
