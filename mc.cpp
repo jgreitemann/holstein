@@ -38,7 +38,7 @@ mc :: mc (string dir) {
     t = param.value_or_default<double>("HOPPING", 1.);
     mu = param.value_or_default<double>("MU", 0.);
     omega = param.value_or_default<double>("OMEGA", 1.);
-    g = param.value_or_default<double>("ELECTRON_PHONON_COUPLING", 0.);
+    g = param.value_or_default<double>("G", 0.);
     epsilon = param.value_or_default<double>("EPSILON", -1.);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
