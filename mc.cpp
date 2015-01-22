@@ -9,16 +9,6 @@
 #define RIGHT_BOND(s) (s+1)
 #define N_WORM 3                // number of worm types
 
-#ifdef HEAT_BATH
-inline int flipped_vtx(int vtx) {
-    int worm = vtx >> 12;
-    int ent_leg = (vtx >> 8) & 3;
-    int exit_leg = (vtx >> 10) & 3;
-    return (vtx & 255) ^ ((worm+1) << (2*ent_leg))
-                       ^ ((worm+1) << (2*exit_leg));
-}
-#endif
-
 struct Node {
     int i;
     int Nd;
@@ -75,7 +65,6 @@ mc :: mc (string dir) {
             W[i] = 0.;
     }
 
-#ifndef HEAT_BATH
     // calculate loop segment weights
     double a[][6] = {
                         {0, 0, 0, 0, 0, 0}, // b_1
@@ -112,27 +101,22 @@ mc :: mc (string dir) {
         a[4][i] += a[0][i]/2 - a[1][i]/2;
         a[2][i] -= a[0][i]/2 + a[1][i]/2;
     }
-#endif
 
     // determine epsilon
     double epsilon_min = 0.0;
-#ifndef HEAT_BATH
     for (uint i = 0; i < 6; ++i) {
         if (a[2][i] < -epsilon_min) {
             epsilon_min = -a[2][i];
         }
     }
-#endif
     if (epsilon < 0) {
         epsilon = epsilon_min;
     } else {
         assert(epsilon >= epsilon_min);
     }
-#ifndef HEAT_BATH
     for (uint i = 0; i < 6; ++i) {
         a[2][i] += epsilon;
     }
-#endif
 
     // parse vertex weights
     int vtx, j, i;
@@ -151,7 +135,6 @@ mc :: mc (string dir) {
     file1.close();
 
     // calculate transition probabilities
-#ifndef HEAT_BATH
     ifstream file2("../assignments.txt");
     if (!file2.is_open()) {
         cerr << "Could not open file assignments.txt" << endl;
@@ -168,20 +151,6 @@ mc :: mc (string dir) {
         }
     }
     file2.close();
-#else
-    for (i = 0; i < 1024; ++i) {
-        for (uint worm = 0; worm < N_WORM; ++worm) {
-            double total = 0.;
-            for (int vtx = i; vtx < 4096; vtx += 1024) {
-                prob[(worm<<12)+vtx]=weight[flipped_vtx((worm<<12)+vtx)];
-                total += prob[(worm<<12)+vtx];
-            }
-            for (int vtx = i; vtx < 4096; vtx += 1024) {
-                prob[(worm<<12)+vtx] /= total;
-            }
-        }
-    }
-#endif
 
     // cumulate transition probabilities
     for (i = 0; i < 1024; ++i) {
