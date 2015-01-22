@@ -25,7 +25,6 @@ mc :: mc (string dir) {
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
     a = param.value_or_default<double>("A", 1.3);
     U = param.value_or_default<double>("U", 1.);
-    t = param.value_or_default<double>("HOPPING", 1.);
     omega = param.value_or_default<double>("OMEGA", 1.);
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
@@ -37,7 +36,6 @@ mc :: mc (string dir) {
     Np = param.value_or_default<int>("N_P", 10);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
-    assert(t > 0);
 
     // resize vectors
     state.resize(L);
@@ -57,7 +55,7 @@ mc :: mc (string dir) {
                      C - mu,
                      C + mu,
                      C + U/4,
-                     t
+                     1.
                  };
     for (uint i = 0; i < 7; ++i) {
         assert(W[i] >= -1e-14);

@@ -26,7 +26,6 @@ private:
     uint N_el_up, N_el_down;
     double a;
     double U;
-    double t;
     double mu;
     double omega;
     double g;
