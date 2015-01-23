@@ -32,7 +32,7 @@ ifeq ($(MODE),SINGLE)
   CC=g++
   LD=g++
 endif
-CFLAGS  = -O3 -Wno-deprecated -g -ansi -ffast-math -Wall $(DEFINES)
+CFLAGS  = -O3 -Wno-deprecated --short-enums -g -ansi -ffast-math -Wall $(DEFINES)
 INCLUDE = -I$(MCLL) -I$(APPMCLL) 
 LDFLAGS = -lm  
 SUPERLP = 
