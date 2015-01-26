@@ -1,23 +1,5 @@
 #include "mc.h"
 
-#define N_BOND 8                // number of bond operator flavors
-#define NB (L)                  // number of bonds
-#define COORD 2                 // coordination number
-#define LEFT_SITE(b) (b-1)      // lattice -
-#define RIGHT_SITE(b) ((b)%L)   //           geometry
-#define LEFT_BOND(s) ((s+L-1)%L+1)
-#define RIGHT_BOND(s) (s+1)
-#define N_WORM 3                // number of worm types
-
-inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
-    vertex v;
-    v.bottom_left = state[LEFT_SITE(b)];
-    v.bottom_right = state[RIGHT_SITE(b)];
-    v.top_right = v.bottom_right;
-    v.top_left = v.bottom_left;
-    return v;
-}
-
 inline byte number_of_electrons (el_state s) {
     return (s & 1) + (s >> 1);
 }
@@ -55,7 +37,7 @@ mc :: mc (string dir) {
     state.resize(L);
     occ.resize(L, 0);
     weight.resize(256, 0);
-    vtx_type.resize(256, 0);
+    vtx_type.resize(256, electron_diag);
     prob.resize(N_WORM<<12, 0);
     ns.resize(L);
 
@@ -174,9 +156,9 @@ mc :: mc (string dir) {
             assign2.exit_leg = bottom_right;
             prob[assign2.int_repr] += prob[assign.int_repr];
             assign.exit_leg = top_right;
-            prob[assign] += prob[assign2];
+            prob[assign.int_repr] += prob[assign2.int_repr];
             assign2.exit_leg = top_left;
-            prob[assign2] += prob[assign];
+            prob[assign2.int_repr] += prob[assign.int_repr];
             assign.exit_leg = bottom_left;
         }
     }
@@ -210,13 +192,13 @@ void mc :: do_update() {
             bond_operator b;
             b.type = electron_diag;
             b.bond = random0N(NB)+1;
-            vertex vtx = diag_vertex_at_bond(&current_state, b.bond);
+            vertex vtx = diag_vertex_at_bond(current_state, b.bond);
             if (random01() < NB/T*weight[vtx.int_repr]/(M-n)) {
                 sm[i] = b;
                 n++;
             }
         } else if (sm[i].type == electron_diag) {
-            vertex vtx = diag_vertex_at_bond(&current_state, sm[i].bond);
+            vertex vtx = diag_vertex_at_bond(current_state, sm[i].bond);
             if (random01() < (M-n+1)/(NB/T*weight[vtx.int_repr])) {
                 sm[i] = identity;
                 n--;
@@ -233,7 +215,7 @@ void mc :: do_update() {
                 sm[i] = b;
                 n++;
             }
-        } else if (sm[i].type = phonon_diag) {
+        } else if (sm[i].type == phonon_diag) {
             int cocc = current_occ[LEFT_SITE(sm[i].bond)];
             if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
                 sm[i] = identity;
@@ -258,16 +240,16 @@ void mc :: do_update() {
                     site = (b.type == creator_left) ? LEFT_SITE(b.bond)
                                                     : RIGHT_SITE(b.bond);
                 } else if (b.type == annihilator_left || b.type == annihilator_right) {
-                    site = (b.type == annihilator_left) ? LEFT_SITE(b)
-                                                        : RIGHT_SITE(b);
+                    site = (b.type == annihilator_left) ? LEFT_SITE(b.bond)
+                                                        : RIGHT_SITE(b.bond);
                 }
-                vertex vtx = diag_vertex_at_bond(&current_state, b.bond);
+                vertex vtx = diag_vertex_at_bond(current_state, b.bond);
                 byte n_el = number_of_electrons(current_state[site]);
                 subseq_node newNode;
                 newNode.i = i;
                 newNode.Nd = 0;
                 newNode.m = current_occ[site];
-                newNode.r = weight[vtx]/n_el;
+                newNode.r = weight[vtx.int_repr]/n_el;
                 subseq[site].push_back(newNode);
             }
 
@@ -357,7 +339,7 @@ void mc :: do_update() {
                     }
                 }
             } else if ((sm[i1->i].type == creator_left || sm[i1->i].type == creator_right)
-                    && (sm[i2->i].type == annihilator_left || sm[i2->i].type == annihilator_right) {
+                    && (sm[i2->i].type == annihilator_left || sm[i2->i].type == annihilator_right)) {
                 if (random0N(2)) { // (H_4, H_5) -> (H_5, H_4)
                     double prob = 1. * (i1->m) / (i1->m+1)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m-1), i1->Nd);
@@ -435,7 +417,7 @@ void mc :: do_update() {
     // adjust M during thermalization
     if (!is_thermalized() && a*n > M) {
         M = a*n;
-        sm.resize(M, 0);
+        sm.resize(M, identity);
     }
     assert(n <= M); // You might need to increase "a" or the
                     // thermalization time if this assertion fails.
@@ -468,7 +450,7 @@ void mc :: do_update() {
                 last[RIGHT_SITE(sm[i].bond)] = list_position(top_right, p);
             } else {
                 link[list_position(bottom_right, p).int_repr] = last[RIGHT_SITE(sm[i].bond)];
-                link[last[RIGHT_SITE(sm[i].bond).int_repr]] = list_position(bottom_right, p);
+                link[last[RIGHT_SITE(sm[i].bond)].int_repr] = list_position(bottom_right, p);
                 last[RIGHT_SITE(sm[i].bond)] = list_position(top_right, p);
             }
 
@@ -496,7 +478,7 @@ void mc :: do_update() {
             ++p;
         }
         for (uint s = 0; s < L; ++s) {
-            if (last[s] != -1) {
+            if (last[s] != invalid_pos) {
                 link[first[s].int_repr] = last[s];
                 link[last[s].int_repr] = first[s];
             }
@@ -506,7 +488,7 @@ void mc :: do_update() {
         // directed loop construction
         int R;
         list_position j, j0;
-        assignment ent_assign;
+        assignment assign;
         worm_type worm;
         double r;
         for (uint i = 0; i < N_loop; ++i) {
@@ -534,8 +516,8 @@ void mc :: do_update() {
                 if (lock[j.index] == total_lock) {
                     assign.exit_leg = straight(j.vtx_leg); // continue straight
                 } else if (lock[j.index] != unlocked) {
-                    if ((lock[j/4] == left_lock && (j.vtx_leg == bottom_left || j.vtx_leg == top_left))
-                        || (lock[j/4] == right_lock && (j.vtx_leg == bottom_right || j.vtx_leg == top_right))) {
+                    if ((lock[j.index] == left_lock && (j.vtx_leg == bottom_left || j.vtx_leg == top_left))
+                        || (lock[j.index] == right_lock && (j.vtx_leg == bottom_right || j.vtx_leg == top_right))) {
                         if (flipped_state(vtx[j.index].get_state(j.vtx_leg), worm) == empty) {
                             assign.exit_leg = j.vtx_leg; // bounce
                         } else {
@@ -546,11 +528,11 @@ void mc :: do_update() {
                                     assign.exit_leg = j.vtx_leg; // bounce
                                 }
                             } else {
-                                assign.exit_leg = straight(vtx_leg); // continue straight
+                                assign.exit_leg = straight(j.vtx_leg); // continue straight
                             }
                         }
                     } else {
-                        assign.exit_leg = straight(vtx_leg); // continue straight
+                        assign.exit_leg = straight(j.vtx_leg); // continue straight
                     }
                 } else {
                     assign.vtx = vtx[j.index];
@@ -660,8 +642,8 @@ void mc :: init() {
     // initialize states randomly
     bool place_holes_up = N_el_up > L/2;
     bool place_holes_down = N_el_down > L/2;
-    int initial_state = static_cast<el_state>((place_holes_up ? up : empty)
-                                              | (place_holes_down ? down : empty));
+    el_state initial_state = static_cast<el_state>((place_holes_up ? up : empty)
+                                                   | (place_holes_down ? down : empty));
     for (uint i = 0; i < L; i++) {
         state[i] = initial_state;
     }
@@ -691,7 +673,7 @@ void mc :: init() {
     avg_worm_len = 0;
     worm_len_sample_size = 0;
     N_loop = vtx_visited * M;
-    sm.resize(M, 0);
+    sm.resize(M, identity);
 
     // add observables
     measure.add_observable("N_up");

@@ -1,6 +1,15 @@
 #ifndef SSE_H
 #define SSE_H
 
+#define N_BOND 8                // number of bond operator flavors
+#define NB (L)                  // number of bonds
+#define COORD 2                 // coordination number
+#define LEFT_SITE(b) (b-1)      // lattice -
+#define RIGHT_SITE(b) ((b)%L)   //           geometry
+#define LEFT_BOND(s) ((s+L-1)%L+1)
+#define RIGHT_BOND(s) (s+1)
+#define N_WORM 3                // number of worm types
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -48,6 +57,12 @@ enum operator_type {
 struct bond_operator {
     operator_type type  : 3;
     unsigned short bond : 13;
+    inline bool operator== (const bond_operator& other) {
+        return bond == other.bond && type == other.type;
+    }
+    inline bool operator!= (const bond_operator& other) {
+        return !(*this == other);
+    }
 };
 
 const bond_operator identity = {electron_diag, 0};
@@ -101,10 +116,15 @@ union list_position {
     int int_repr;
     list_position() {}
     list_position(leg vtx_leg, int index) : vtx_leg(vtx_leg), index(index) {}
-    bool operator==(list_position& lp) { return int_repr==lp.int_repr; }
+    inline bool operator== (const list_position& lp) {
+        return int_repr == lp.int_repr;
+    }
+    inline bool operator!= (const list_position& lp) {
+        return int_repr != lp.int_repr;
+    }
 };
 
-const list_position invalid_pos = {bottom_left, -1};
+const list_position invalid_pos = list_position(bottom_left, -1);
 
 #ifndef NDEBUG
 template class vector<int>;
@@ -113,6 +133,7 @@ template class vector<el_state>;
 template class vector<bond_operator>;
 template class vector<lock_flag>;
 template class vector<list_position>;
+template class vector<operator_type>;
 #endif
 
 class mc {
@@ -140,11 +161,20 @@ private:
     uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
-    vector<int> vtx_type;
+    vector<operator_type> vtx_type;
     vector<double> prob;
     vector<int> ns;
     double avg_worm_len;
     uint worm_len_sample_size;
+
+    inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
+        vertex v;
+        v.bottom_left = state[LEFT_SITE(b)];
+        v.bottom_right = state[RIGHT_SITE(b)];
+        v.top_right = v.bottom_right;
+        v.top_left = v.bottom_left;
+        return v;
+    }
 
 public:    
     parser param;
