@@ -579,7 +579,7 @@ void mc :: do_update() {
         for (uint i = 0; p < n; ++i) {
             if (sm[i] == identity)
                 continue;
-            if (sm[i].type == up_hopping || sm[i].type == down_hopping)
+            if (sm[i].type == electron_diag || sm[i].type == up_hopping || sm[i].type == down_hopping)
                 sm[i].type = vtx_type[vtx[p].int_repr];
             ++p;
         }
