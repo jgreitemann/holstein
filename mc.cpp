@@ -149,17 +149,21 @@ mc :: mc (string dir) {
 
     // cumulate transition probabilities
     assignment assign2;
-    for (assign.int_repr = 0; assign.int_repr < 1024; ++assign.int_repr) {
-        for (byte worm = 0; worm < N_WORM; ++worm) {
-            assign.worm = static_cast<worm_type>(worm);
-            assign2 = assign;
-            assign2.exit_leg = bottom_right;
-            prob[assign2.int_repr] += prob[assign.int_repr];
-            assign.exit_leg = top_right;
-            prob[assign.int_repr] += prob[assign2.int_repr];
-            assign2.exit_leg = top_left;
-            prob[assign2.int_repr] += prob[assign.int_repr];
-            assign.exit_leg = bottom_left;
+    for (unsigned short vertex_i = 0; vertex_i < 256; ++vertex_i) {
+        assign.vtx.int_repr = vertex_i;
+        for (byte ent_leg_i = bottom_left; ent_leg_i <= top_left; ++ent_leg_i) {
+            assign.ent_leg = static_cast<leg>(ent_leg_i);
+            for (byte worm = 0; worm < N_WORM; ++worm) {
+                assign.worm = static_cast<worm_type>(worm);
+                assign.exit_leg = bottom_left;
+                assign2 = assign;
+                assign2.exit_leg = bottom_right;
+                prob[assign2.int_repr] += prob[assign.int_repr];
+                assign.exit_leg = top_right;
+                prob[assign.int_repr] += prob[assign2.int_repr];
+                assign2.exit_leg = top_left;
+                prob[assign2.int_repr] += prob[assign.int_repr];
+            }
         }
     }
 }
@@ -513,6 +517,9 @@ void mc :: do_update() {
                     do_update();
                     return;
                 }
+                assign.vtx = vtx[j.index];
+                assign.ent_leg = j.vtx_leg;
+                assign.worm = worm;
                 if (lock[j.index] == total_lock) {
                     assign.exit_leg = straight(j.vtx_leg); // continue straight
                 } else if (lock[j.index] != unlocked) {
@@ -535,9 +542,6 @@ void mc :: do_update() {
                         assign.exit_leg = straight(j.vtx_leg); // continue straight
                     }
                 } else {
-                    assign.vtx = vtx[j.index];
-                    assign.ent_leg = j.vtx_leg;
-                    assign.worm = worm;
                     r = random01();
                     byte exit_leg_i;
                     for (exit_leg_i = bottom_left; exit_leg_i <= top_left; ++exit_leg_i) {
