@@ -1,4 +1,6 @@
 #include "mc.h"
+#include <algorithm>
+#include <functional>
 
 inline byte number_of_electrons (el_state s) {
     return (s & 1) + (s >> 1);
@@ -33,14 +35,15 @@ mc :: mc (string dir) {
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
 
-    // resize vectors
-    state.resize(L);
-    occ.resize(L, 0);
+    // initialize vectors
     weight.resize(256, 0);
     vtx_type.resize(256, electron_diag);
     prob.resize(N_WORM<<12, 0);
     ns.resize(L);
-
+    subseq.resize(L, vector<subseq_node>());
+    initial_Nd.resize(L);
+    first.resize(L);
+    last.resize(L);
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -186,10 +189,10 @@ void mc :: do_update() {
     }
 
     // diagonal update & subsequence construction
-    vector<vector<subseq_node> > subseq(L, vector<subseq_node>());
-    vector<int> initial_Nd(L, 0);
-    vector<el_state> current_state(state);
-    vector<int> current_occ(occ);
+    for_each(subseq.begin(), subseq.end(), mem_fun_ref(&vector<subseq_node>::clear));
+    fill(initial_Nd.begin(), initial_Nd.end(), 0);
+    current_state = state;
+    current_occ = occ;
     for (uint i = 0; i < M; ++i) {
         // electronic diagonal update
         if (sm[i] == identity) {
@@ -275,8 +278,6 @@ void mc :: do_update() {
             }
         }
     }
-    current_state.clear();
-    current_occ.clear();
 
     // transfer Nd to the back of the list & push front to the back
     for (uint s = 0; s < L; ++s) {
@@ -416,7 +417,6 @@ void mc :: do_update() {
             occ[s] = subseq[s].front().m;
         }
     }
-    subseq.clear();
 
     // adjust M during thermalization
     if (!is_thermalized() && a*n > M) {
@@ -429,11 +429,11 @@ void mc :: do_update() {
     // directed loops electron update
     if (n > 0) {
         // linked list construction
-        vector<vertex> vtx(n, vertex());
-        vector<lock_flag> lock(n, unlocked);
-        vector<list_position> link(4*n, list_position());
-        vector<list_position> first(L, invalid_pos);
-        vector<list_position> last(L, invalid_pos);
+        vtx.resize(n);
+        lock.resize(n);
+        link.resize(4*n);
+        fill(first.begin(), first.end(), invalid_pos);
+        fill(last.begin(), last.end(), invalid_pos);
         current_state = state;
         uint p = 0;
         for (uint i = 0; p < n; ++i) {
@@ -477,6 +477,8 @@ void mc :: do_update() {
                 lock[p] = right_lock; // require at least one electron on right site
             } else if (sm[i].type == phonon_diag) {
                 lock[p] = total_lock;
+            } else {
+                lock[p] = unlocked;
             }
 
             ++p;
@@ -487,7 +489,6 @@ void mc :: do_update() {
                 link[last[s].int_repr] = first[s];
             }
         }
-        current_state.clear();
 
         // directed loop construction
         int R;
@@ -570,9 +571,6 @@ void mc :: do_update() {
                 avg_worm_len += 1.*k / (++worm_len_sample_size);
             }
         }
-        link.clear();
-        last.clear();
-        lock.clear();
 
         // mapping back to operator sequence
         p = 0;
@@ -593,8 +591,6 @@ void mc :: do_update() {
                 state[s] = vtx[first[s].index].get_state(first[s].vtx_leg);
             }
         }
-        vtx.clear();
-        first.clear();
     } else { // empty operator sequence
         for (uint s = 0; s < L; ++s) {
             state[s] = static_cast<el_state>(random0N(4));
@@ -644,6 +640,8 @@ void mc :: init() {
     random_init();
 
     // initialize states randomly
+    state.resize(L);
+    occ.resize(L, 0);
     bool place_holes_up = N_el_up > L/2;
     bool place_holes_down = N_el_down > L/2;
     el_state initial_state = static_cast<el_state>((place_holes_up ? up : empty)

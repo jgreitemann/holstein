@@ -167,6 +167,18 @@ private:
     double avg_worm_len;
     uint worm_len_sample_size;
 
+    // workspace variables
+    vector<vector<subseq_node> > subseq;
+    vector<int> initial_Nd;
+    vector<el_state> current_state;
+    vector<int> current_occ;
+    vector<vertex> vtx;
+    vector<lock_flag> lock;
+    vector<list_position> link;
+    vector<list_position> first;
+    vector<list_position> last;
+
+
     inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
         vertex v;
         v.bottom_left = state[LEFT_SITE(b)];
