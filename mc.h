@@ -163,7 +163,6 @@ private:
     vector<double> weight;
     vector<operator_type> vtx_type;
     vector<double> prob;
-    vector<int> ns;
     double avg_worm_len;
     uint worm_len_sample_size;
 
@@ -177,6 +176,10 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
+    vector<int> sum_n, sum_s, sum_nn, sum_ss, sum_m;
+    vector<double> S_rho, S_sigma;
+    vector<double> chi_rho, chi_sigma;
+    vector<double> mean_m;
 
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {

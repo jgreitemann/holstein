@@ -6,6 +6,10 @@ inline byte number_of_electrons (el_state s) {
     return (s & 1) + (s >> 1);
 }
 
+inline signed char local_magnetization (el_state s) {
+    return (s & 1) - (s >> 1);
+}
+
 inline el_state flipped_state (el_state to_flip, worm_type what) {
     return static_cast<el_state>(to_flip ^ (what+1));
 }
@@ -39,11 +43,20 @@ mc :: mc (string dir) {
     weight.resize(256, 0);
     vtx_type.resize(256, electron_diag);
     prob.resize(N_WORM<<12, 0);
-    ns.resize(L);
     subseq.resize(L, vector<subseq_node>());
     initial_Nd.resize(L);
     first.resize(L);
     last.resize(L);
+    sum_n.resize(L);
+    sum_s.resize(L);
+    sum_nn.resize(L);
+    sum_ss.resize(L);
+    sum_m.resize(L);
+    S_rho.resize(L);
+    S_sigma.resize(L);
+    chi_rho.resize(L);
+    chi_sigma.resize(L);
+    mean_m.resize(L);
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -179,7 +192,25 @@ mc :: ~mc() {
     weight.clear();
     vtx_type.clear();
     prob.clear();
-    ns.clear();
+    subseq;
+    initial_Nd;
+    current_state;
+    current_occ;
+    vtx.clear();
+    lock.clear();
+    link.clear();
+    first.clear();
+    last.clear();
+    sum_n.clear();
+    sum_s.clear();
+    sum_nn.clear();
+    sum_ss.clear();
+    sum_m.clear();
+    S_rho.clear();
+    S_sigma.clear();
+    chi_rho.clear();
+    chi_sigma.clear();
+    mean_m.clear();
 }
 
 void mc :: do_update() {
@@ -603,7 +634,6 @@ void mc :: do_update() {
 void mc :: do_measurement() {
     uint N_up = 0, N_down = 0;
     for (uint s = 0; s < L; ++s) {
-        ns[s] = number_of_electrons(state[s]);
         N_up += state[s] == up || state[s] == dublon;
         N_down += state[s] == down || state[s] == dublon;
     }
@@ -620,15 +650,69 @@ void mc :: do_measurement() {
 
     // add data to measurement
     measure.add("Energy", energy);
-    measure.add("n_i", ns);
 
-    // calculate and measure density-density correlation
-    for (uint s = L; s > 0; --s) {
-        ns[s-1] *= ns[0];
+    // calculate correlation functions and susceptibilities
+    fill(sum_n.begin(), sum_n.end(), 0);
+    fill(sum_s.begin(), sum_s.end(), 0);
+    fill(sum_nn.begin(), sum_nn.end(), 0);
+    fill(sum_ss.begin(), sum_ss.end(), 0);
+    fill(sum_m.begin(), sum_m.end(), 0);
+    current_state = state;
+    current_occ = occ;
+    uint p = 0;
+    int n_s, n_0, s_s, s_0;
+    for (uint i = 0; p < n; ++i) {
+        if (sm[i] == identity)
+            continue;
+
+        n_0 = number_of_electrons(current_state[0]);
+        s_0 = local_magnetization(current_state[0]);
+        for (uint s = 0; s < L; ++s) {
+            n_s = number_of_electrons(current_state[s]);
+            s_s = local_magnetization(current_state[s]);
+            sum_n[s] += n_s;
+            sum_nn[s] += n_s * n_0;
+            sum_s[s] += s_s;
+            sum_ss[s] += s_s * s_0;
+            sum_m[s] += current_occ[s];
+        }
+
+        bond_operator b = sm[i];
+        // propagation of state
+        if (b.type == up_hopping) {
+            current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
+            current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+        } else if (b.type == down_hopping) {
+            current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
+            current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
+        } else if (b.type == creator_left) {
+            current_occ[LEFT_SITE(b.bond)]++;
+        } else if (b.type == creator_right) {
+            current_occ[RIGHT_SITE(b.bond)]++;
+        } else if (b.type == annihilator_left) {
+            current_occ[LEFT_SITE(b.bond)]--;
+        } else if (b.type == annihilator_right) {
+            current_occ[RIGHT_SITE(b.bond)]--;
+        }
+        ++p;
     }
-    measure.add("n_1n_i", ns);
+    for (uint s = 0; s < L; ++s) {
+        n_s = number_of_electrons(current_state[s]);
+        s_s = local_magnetization(current_state[s]);
+        sum_nn[s] += n_s * n_0;
+        sum_ss[s] += s_s * s_0;
+        S_rho[s] = 1./(n+1)*sum_nn[s];
+        S_sigma[s] = 1./(n+1)*sum_ss[s];
+        chi_rho[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0] + 1./T/(n+1)/(n+1)*sum_nn[s];
+        chi_sigma[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0] + 1./T/(n+1)/(n+1)*sum_ss[s];
+        mean_m[s] = 1./n*sum_m[s];
+    }
 
-    measure.add("m_i", occ);
+    measure.add("S_rho", S_rho);
+    measure.add("S_sigma", S_sigma);
+    measure.add("chi_rho", chi_rho);
+    measure.add("chi_sigma", chi_sigma);
+    measure.add("m_i", mean_m);
 }
 
 
@@ -682,8 +766,10 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_vectorobservable("n_i", L);
-    measure.add_vectorobservable("n_1n_i", L);
+    measure.add_vectorobservable("S_rho", L);
+    measure.add_vectorobservable("S_sigma", L);
+    measure.add_vectorobservable("chi_rho", L);
+    measure.add_vectorobservable("chi_sigma", L);
     measure.add_vectorobservable("m_i", L);
 }
 
