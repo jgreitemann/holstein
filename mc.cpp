@@ -1,6 +1,7 @@
 #include "mc.h"
 #include <algorithm>
 #include <functional>
+#include <cmath>
 
 inline byte number_of_electrons (el_state s) {
     return (s & 1) + (s >> 1);
@@ -31,6 +32,7 @@ mc :: mc (string dir) {
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
     epsilon = param.value_or_default<double>("EPSILON", -1.);
+    q = param.value_or_default<double>("Q", M_PI);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -52,11 +54,19 @@ mc :: mc (string dir) {
     sum_nn.resize(L);
     sum_ss.resize(L);
     sum_m.resize(L);
-    S_rho.resize(L);
-    S_sigma.resize(L);
-    chi_rho.resize(L);
-    chi_sigma.resize(L);
+    S_rho_r.resize(L);
+    S_sigma_r.resize(L);
+    chi_rho_r.resize(L);
+    chi_sigma_r.resize(L);
     mean_m.resize(L);
+    cos_qr.resize(L);
+    sin_qr.resize(L);
+
+    // calculate trigonometric factors for Fourier transforms
+    for (uint s = 0; s < L; ++s) {
+        cos_qr[s] = cos(q*s);
+        sin_qr[s] = sin(q*s);
+    }
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -192,10 +202,10 @@ mc :: ~mc() {
     weight.clear();
     vtx_type.clear();
     prob.clear();
-    subseq;
-    initial_Nd;
-    current_state;
-    current_occ;
+    subseq.clear();
+    initial_Nd.clear();
+    current_state.clear();
+    current_occ.clear();
     vtx.clear();
     lock.clear();
     link.clear();
@@ -206,10 +216,10 @@ mc :: ~mc() {
     sum_nn.clear();
     sum_ss.clear();
     sum_m.clear();
-    S_rho.clear();
-    S_sigma.clear();
-    chi_rho.clear();
-    chi_sigma.clear();
+    S_rho_r.clear();
+    S_sigma_r.clear();
+    chi_rho_r.clear();
+    chi_sigma_r.clear();
     mean_m.clear();
 }
 
@@ -696,22 +706,52 @@ void mc :: do_measurement() {
         }
         ++p;
     }
+
+    // calculate real space correlation functions and susceptibilities
     for (uint s = 0; s < L; ++s) {
         n_s = number_of_electrons(current_state[s]);
         s_s = local_magnetization(current_state[s]);
         sum_nn[s] += n_s * n_0;
         sum_ss[s] += s_s * s_0;
-        S_rho[s] = 1./(n+1)*sum_nn[s];
-        S_sigma[s] = 1./(n+1)*sum_ss[s];
-        chi_rho[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0] + 1./T/(n+1)/(n+1)*sum_nn[s];
-        chi_sigma[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0] + 1./T/(n+1)/(n+1)*sum_ss[s];
+        S_rho_r[s] = 1./(n+1)*sum_nn[s];
+        S_sigma_r[s] = 1./(n+1)*sum_ss[s];
+        chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0] + 1./T/(n+1)/(n+1)*sum_nn[s];
+        chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0] + 1./T/(n+1)/(n+1)*sum_ss[s];
         mean_m[s] = 1./n*sum_m[s];
     }
 
-    measure.add("S_rho", S_rho);
-    measure.add("S_sigma", S_sigma);
-    measure.add("chi_rho", chi_rho);
-    measure.add("chi_sigma", chi_sigma);
+    // Fourier transform
+    double S_rho_q_re = 0.0;
+    double S_rho_q_im = 0.0;
+    double S_sigma_q_re = 0.0;
+    double S_sigma_q_im = 0.0;
+    double chi_rho_q_re = 0.0;
+    double chi_rho_q_im = 0.0;
+    double chi_sigma_q_re = 0.0;
+    double chi_sigma_q_im = 0.0;
+    for (uint s = 0; s < L; ++s) {
+        S_rho_q_re += cos_qr[s] * S_rho_r[s];
+        S_rho_q_im += sin_qr[s] * S_rho_r[s];
+        S_sigma_q_re += cos_qr[s] * S_sigma_r[s];
+        S_sigma_q_im += sin_qr[s] * S_sigma_r[s];
+        chi_rho_q_re += cos_qr[s] * chi_rho_r[s];
+        chi_rho_q_im += sin_qr[s] * chi_rho_r[s];
+        chi_sigma_q_re += cos_qr[s] * chi_sigma_r[s];
+        chi_sigma_q_im += sin_qr[s] * chi_sigma_r[s];
+    }
+
+    measure.add("S_rho_q_re", S_rho_q_re);
+    measure.add("S_rho_q_im", S_rho_q_im);
+    measure.add("S_sigma_q_re", S_sigma_q_re);
+    measure.add("S_sigma_q_im", S_sigma_q_im);
+    measure.add("chi_rho_q_re", chi_rho_q_re);
+    measure.add("chi_rho_q_im", chi_rho_q_im);
+    measure.add("chi_sigma_q_re", chi_sigma_q_re);
+    measure.add("chi_sigma_q_im", chi_sigma_q_im);
+    measure.add("S_rho_r", S_rho_r);
+    measure.add("S_sigma_r", S_sigma_r);
+    measure.add("chi_rho_r", chi_rho_r);
+    measure.add("chi_sigma_r", chi_sigma_r);
     measure.add("m_i", mean_m);
 }
 
@@ -766,10 +806,18 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_vectorobservable("S_rho", L);
-    measure.add_vectorobservable("S_sigma", L);
-    measure.add_vectorobservable("chi_rho", L);
-    measure.add_vectorobservable("chi_sigma", L);
+    measure.add_observable("S_rho_q_re");
+    measure.add_observable("S_rho_q_im");
+    measure.add_observable("S_sigma_q_re");
+    measure.add_observable("S_sigma_q_im");
+    measure.add_observable("chi_rho_q_re");
+    measure.add_observable("chi_rho_q_im");
+    measure.add_observable("chi_sigma_q_re");
+    measure.add_observable("chi_sigma_q_im");
+    measure.add_vectorobservable("S_rho_r", L);
+    measure.add_vectorobservable("S_sigma_r", L);
+    measure.add_vectorobservable("chi_rho_r", L);
+    measure.add_vectorobservable("chi_sigma_r", L);
     measure.add_vectorobservable("m_i", L);
 }
 
