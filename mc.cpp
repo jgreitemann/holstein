@@ -32,7 +32,8 @@ mc :: mc (string dir) {
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
     epsilon = param.value_or_default<double>("EPSILON", -1.);
-    q = param.value_or_default<double>("Q", M_PI);
+    q_chi = param.value_or_default<double>("Q_CHI", M_PI);
+    q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 10000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -59,13 +60,17 @@ mc :: mc (string dir) {
     chi_rho_r.resize(L);
     chi_sigma_r.resize(L);
     mean_m.resize(L);
-    cos_qr.resize(L);
-    sin_qr.resize(L);
+    cos_q_chi.resize(L);
+    sin_q_chi.resize(L);
+    cos_q_S.resize(L);
+    sin_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
     for (uint s = 0; s < L; ++s) {
-        cos_qr[s] = cos(q*s);
-        sin_qr[s] = sin(q*s);
+        cos_q_chi[s] = cos(q_chi*s);
+        sin_q_chi[s] = sin(q_chi*s);
+        cos_q_S[s] = cos(q_S*s);
+        sin_q_S[s] = sin(q_S*s);
     }
 
     // define weights
@@ -730,14 +735,14 @@ void mc :: do_measurement() {
     double chi_sigma_q_re = 0.0;
     double chi_sigma_q_im = 0.0;
     for (uint s = 0; s < L; ++s) {
-        S_rho_q_re += cos_qr[s] * S_rho_r[s];
-        S_rho_q_im += sin_qr[s] * S_rho_r[s];
-        S_sigma_q_re += cos_qr[s] * S_sigma_r[s];
-        S_sigma_q_im += sin_qr[s] * S_sigma_r[s];
-        chi_rho_q_re += cos_qr[s] * chi_rho_r[s];
-        chi_rho_q_im += sin_qr[s] * chi_rho_r[s];
-        chi_sigma_q_re += cos_qr[s] * chi_sigma_r[s];
-        chi_sigma_q_im += sin_qr[s] * chi_sigma_r[s];
+        S_rho_q_re += cos_q_S[s] * S_rho_r[s];
+        S_rho_q_im += sin_q_S[s] * S_rho_r[s];
+        S_sigma_q_re += cos_q_S[s] * S_sigma_r[s];
+        S_sigma_q_im += sin_q_S[s] * S_sigma_r[s];
+        chi_rho_q_re += cos_q_chi[s] * chi_rho_r[s];
+        chi_rho_q_im += sin_q_chi[s] * chi_rho_r[s];
+        chi_sigma_q_re += cos_q_chi[s] * chi_sigma_r[s];
+        chi_sigma_q_im += sin_q_chi[s] * chi_sigma_r[s];
     }
 
     measure.add("S_rho_q_re", S_rho_q_re);
@@ -748,10 +753,6 @@ void mc :: do_measurement() {
     measure.add("chi_rho_q_im", chi_rho_q_im);
     measure.add("chi_sigma_q_re", chi_sigma_q_re);
     measure.add("chi_sigma_q_im", chi_sigma_q_im);
-    measure.add("S_rho_r", S_rho_r);
-    measure.add("S_sigma_r", S_sigma_r);
-    measure.add("chi_rho_r", chi_rho_r);
-    measure.add("chi_sigma_r", chi_sigma_r);
     measure.add("m_i", mean_m);
 }
 
@@ -814,10 +815,6 @@ void mc :: init() {
     measure.add_observable("chi_rho_q_im");
     measure.add_observable("chi_sigma_q_re");
     measure.add_observable("chi_sigma_q_im");
-    measure.add_vectorobservable("S_rho_r", L);
-    measure.add_vectorobservable("S_sigma_r", L);
-    measure.add_vectorobservable("chi_rho_r", L);
-    measure.add_vectorobservable("chi_sigma_r", L);
     measure.add_vectorobservable("m_i", L);
 }
 

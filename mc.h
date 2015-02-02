@@ -149,7 +149,7 @@ private:
     double omega;
     double g;
     double epsilon;
-    double q;
+    double q_S, q_chi;
     uint therm;
     vector<el_state> state;
     vector<int> occ;
@@ -181,8 +181,10 @@ private:
     vector<double> S_rho_r, S_sigma_r;
     vector<double> chi_rho_r, chi_sigma_r;
     vector<double> mean_m;
-    vector<double> cos_qr;
-    vector<double> sin_qr;
+    vector<double> cos_q_S;
+    vector<double> sin_q_S;
+    vector<double> cos_q_chi;
+    vector<double> sin_q_chi;
 
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
