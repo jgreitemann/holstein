@@ -34,7 +34,7 @@ ifeq ($(MODE),SINGLE)
 endif
 CFLAGS  = -O3 -Wno-deprecated --short-enums -g -ansi -ffast-math -Wall $(DEFINES)
 INCLUDE = -I$(MCLL) -I$(APPMCLL) 
-LDFLAGS = -lm  
+LDFLAGS = -lgsl -lgslcblas -lm
 SUPERLP = 
 
 CCLN = g++

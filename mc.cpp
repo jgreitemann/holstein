@@ -1,7 +1,9 @@
 #include "mc.h"
+#include <cstdlib>
 #include <algorithm>
 #include <functional>
 #include <cmath>
+#include <gsl/gsl_fit.h>
 
 inline byte number_of_electrons (el_state s) {
     return (s & 1) + (s >> 1);
@@ -31,21 +33,31 @@ mc :: mc (string dir) {
     omega = param.value_or_default<double>("OMEGA", 1.);
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
-    epsilon = param.value_or_default<double>("EPSILON", -1.);
     q_chi = param.value_or_default<double>("Q_CHI", M_PI);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
-    therm = param.value_or_default<int>("THERMALIZATION", 10000);
+    therm = param.value_or_default<int>("THERMALIZATION", 50000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 10);
+    mu_adjust = param.value_or_default<bool>("MU_ADJUST", 1);
+    mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1*abs(mu));
+    mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 20);
+    mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 1000);
+    mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
 
+    if (mu_adjust) {
+        total_therm = 2*therm+2*mu_adjust_N*mu_adjust_sweep + (2*mu_adjust_N-2)*mu_adjust_therm;
+    } else {
+        total_therm = therm;
+    }
+
     // initialize vectors
-    weight.resize(256, 0);
-    vtx_type.resize(256, electron_diag);
-    prob.resize(N_WORM<<12, 0);
+    weight.resize(256);
+    vtx_type.resize(256);
+    prob.resize(N_WORM<<12);
     subseq.resize(L, vector<subseq_node>());
     initial_Nd.resize(L);
     first.resize(L);
@@ -72,6 +84,12 @@ mc :: mc (string dir) {
         cos_q_S[s] = cos(q_S*s);
         sin_q_S[s] = sin(q_S*s);
     }
+}
+
+void mc :: recalc_directed_loop_probs() {
+    fill(weight.begin(), weight.end(), 0.);
+    fill(vtx_type.begin(), vtx_type.end(), electron_diag);
+    fill(prob.begin(), prob.end(), 0.);
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -128,6 +146,7 @@ mc :: mc (string dir) {
     }
 
     // determine epsilon
+    epsilon = param.value_or_default<double>("EPSILON", -1.);
     double epsilon_min = 0.0;
     for (uint i = 0; i < 6; ++i) {
         if (a[2][i] < -epsilon_min) {
@@ -229,8 +248,27 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
+    // switch mu value as necessary
+    if (sweep < total_therm && mu_adjust) {
+        if (sweep == therm + ((mu_index<0) ? 1 : 2)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)) {
+            if (sweep == total_therm-therm) {
+                for (uint k = 0; k < mu_adjust_N; ++k) {
+                    N_mus[k] = N_mus[k]/2/mu_adjust_sweep - (N_el_up+N_el_down);
+                }
+                double m, b, c00, c01, c11, sumsq;
+                gsl_fit_linear(&mus[0], 1, &N_mus[0], 1, mu_adjust_N, &b, &m, &c00, &c01, &c11, &sumsq);
+                mu = -b / m;
+                recalc_directed_loop_probs();
+            } else {
+                cout << "mu_index = " << mu_index << endl;
+                mu = mus[abs(++mu_index)];
+                recalc_directed_loop_probs();
+            }
+        }
+    }
+
     // exiting thermalization stage
-    if (sweep == therm) {
+    if (sweep == total_therm) {
         N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
@@ -643,6 +681,12 @@ void mc :: do_update() {
         }
     }
 
+    // log the number of electrons if necessary
+    if (sweep < total_therm && mu_adjust && sweep >= therm + ((mu_index<=0) ? 0 : 1)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm) && sweep <= therm + ((mu_index<0) ? 2 : 3)*mu_adjust_sweep + (mu_index+mu_adjust_N-2)*(mu_adjust_sweep+mu_adjust_therm)) {
+        for (uint s = 0; s < L; ++s) {
+            N_mus[abs(mu_index)] += number_of_electrons(state[s]);
+        }
+    }
     ++sweep;
 }
 
@@ -758,7 +802,7 @@ void mc :: do_measurement() {
 
 
 bool mc :: is_thermalized() {
-    return (sweep>therm);
+    return (sweep > total_therm);
 }
 
 void mc :: init() {
@@ -802,6 +846,20 @@ void mc :: init() {
     N_loop = vtx_visited * M;
     sm.resize(M, identity);
 
+    // set up adjustment of mu if desired
+    if (mu_adjust) {
+        mus.resize(mu_adjust_N);
+        N_mus.resize(mu_adjust_N, 0);
+
+        // calculate mu values for adjustment
+        for (uint i = 0; i < mu_adjust_N; i++) {
+            mus[i] = (mu-mu_adjust_range) + 2*mu_adjust_range/(mu_adjust_N-1)*i;
+        }
+        mu_index = -(mu_adjust_N-1);
+        mu = mus[abs(mu_index)];
+        recalc_directed_loop_probs();
+    }
+
     // add observables
     measure.add_observable("N_up");
     measure.add_observable("N_down");
@@ -830,12 +888,18 @@ void mc :: write(string dir) {
     d.write(avg_worm_len);
     d.write(worm_len_sample_size);
     d.write(N_loop);
+    d.write(mu);
+    if (mu_adjust) {
+        d.write(mu_index);
+        d.write(mus);
+        d.write(N_mus);
+    }
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
     ofstream f;
     f.open(dir.c_str());
-    f << ( (is_thermalized()) ? sweep-therm : 0 ) << endl;
+    f << ( (is_thermalized()) ? sweep-total_therm : 0 ) << endl;
     f.close();
 }
 
@@ -855,7 +919,14 @@ bool mc :: read(string dir) {
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);
         d.read(N_loop);
+        d.read(mu);
+        if (mu_adjust) {
+            d.read(mu_index);
+            d.read(mus);
+            d.read(N_mus);
+        }
         d.close();
+        recalc_directed_loop_probs();
         return true;
     }
 }
@@ -873,4 +944,11 @@ void mc :: write_output(string dir) {
     f << "operator string max. length: " << M << endl;
     f << "average worm length: " << avg_worm_len << endl;
     f << "number of loops per MCS: " << N_loop << endl;
+    f << "mu = " << mu << endl;
+    if (mu_adjust) {
+        f << "table of mu values and mean particle number deviations from desired values:" << endl;
+        for (uint i = 0; i < mus.size(); ++i) {
+            f << mus[i] << " " << N_mus[i] << endl;
+        }
+    }
 }

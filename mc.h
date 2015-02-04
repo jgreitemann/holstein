@@ -150,7 +150,7 @@ private:
     double g;
     double epsilon;
     double q_S, q_chi;
-    uint therm;
+    uint therm, total_therm;
     vector<el_state> state;
     vector<int> occ;
     vector<bond_operator> sm;
@@ -166,6 +166,12 @@ private:
     vector<double> prob;
     double avg_worm_len;
     uint worm_len_sample_size;
+    bool mu_adjust;
+    double mu_adjust_range;
+    int mu_adjust_N;
+    int mu_adjust_therm;
+    int mu_adjust_sweep;
+    int mu_index;
 
     // workspace variables
     vector<vector<subseq_node> > subseq;
@@ -185,6 +191,8 @@ private:
     vector<double> sin_q_S;
     vector<double> cos_q_chi;
     vector<double> sin_q_chi;
+    vector<double> mus;
+    vector<double> N_mus;
 
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
@@ -195,6 +203,8 @@ private:
         v.top_left = v.bottom_left;
         return v;
     }
+
+    void recalc_directed_loop_probs();
 
 public:    
     parser param;
