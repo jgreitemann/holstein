@@ -260,7 +260,6 @@ void mc :: do_update() {
                 mu = -b / m;
                 recalc_directed_loop_probs();
             } else {
-                cout << "mu_index = " << mu_index << endl;
                 mu = mus[abs(++mu_index)];
                 recalc_directed_loop_probs();
             }
@@ -682,7 +681,7 @@ void mc :: do_update() {
     }
 
     // log the number of electrons if necessary
-    if (sweep < total_therm && mu_adjust && sweep >= therm + ((mu_index<=0) ? 0 : 1)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm) && sweep <= therm + ((mu_index<0) ? 2 : 3)*mu_adjust_sweep + (mu_index+mu_adjust_N-2)*(mu_adjust_sweep+mu_adjust_therm)) {
+    if (sweep < total_therm && mu_adjust && sweep >= therm + ((mu_index<=0) ? 0 : 1)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm) && sweep < therm + ((mu_index<0) ? 1 : 2)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)) {
         for (uint s = 0; s < L; ++s) {
             N_mus[abs(mu_index)] += number_of_electrons(state[s]);
         }
