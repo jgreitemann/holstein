@@ -148,6 +148,12 @@ private:
     double mu;
     double omega;
     double g;
+#ifdef MCL_PT
+    int label;
+    int myrep;
+    int pt_spacing;
+    vector<double> gvec;
+#endif
     double epsilon;
     double q_S, q_chi;
     uint therm, total_therm;
@@ -194,7 +200,6 @@ private:
     vector<double> mus;
     vector<double> N_mus;
 
-
     inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
         vertex v;
         v.bottom_left = state[LEFT_SITE(b)];
@@ -208,6 +213,12 @@ private:
 
 public:    
     parser param;
+#ifdef MCL_PT
+    vector<measurements> measure;
+#else
+    measurements measure;
+#endif
+
     void param_init(string dir) {param.read_file(dir);}
     randomnumbergenerator *rng;
     void random_init() {
@@ -242,13 +253,26 @@ public:
     void do_measurement();
     void write(string);
     bool read(string);
+#ifdef MCL_PT
+    void write_output(string,int);
+#else
     void write_output(string);
+#endif
 
     bool is_thermalized();
-    measurements measure;    
-
+#ifdef MCL_PT
+    bool request_global_update();
+    void change_parameter(int);
+    void change_to(int);
+    double get_weight(int);
+    int get_label();
+#endif
     mc(string);
     ~mc();
 };
+
+#ifdef MCL_PT
+typedef mc mc_pt;
+#endif
 
 #endif

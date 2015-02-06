@@ -32,7 +32,12 @@ mc :: mc (string dir) {
     a = param.value_or_default<double>("A", 1.3);
     U = param.value_or_default<double>("U", 1.);
     omega = param.value_or_default<double>("OMEGA", 1.);
+#ifdef MCL_PT
+    gvec = param.return_vector<double>("@G");
+    pt_spacing = param.value_or_default<int>("PT_SPACING", 100);
+#else
     g = param.value_or_default<double>("G", 0.);
+#endif
     mu = param.value_or_default<double>("MU", g*g/omega);
     q_chi = param.value_or_default<double>("Q_CHI", M_PI);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
@@ -77,6 +82,9 @@ mc :: mc (string dir) {
     sin_q_chi.resize(L);
     cos_q_S.resize(L);
     sin_q_S.resize(L);
+#ifdef MCL_PT
+    measure.resize(gvec.size());
+#endif
 
     // calculate trigonometric factors for Fourier transforms
     for (uint s = 0; s < L; ++s) {
@@ -717,19 +725,22 @@ void mc :: do_measurement() {
         N_up += state[s] == up || state[s] == dublon;
         N_down += state[s] == down || state[s] == dublon;
     }
+#ifdef MCL_PT
+    measure[myrep].add("N_up", N_up);
+    measure[myrep].add("N_down", N_down);
+    measure[myrep].add("dublon_rejection_rate", dublon_rejected);
+#else
     measure.add("N_up", N_up);
     measure.add("N_down", N_down);
     measure.add("dublon_rejection_rate", dublon_rejected);
-    
+#endif
+
     // skip measurement if particle numbers are not right
     if (N_up != N_el_up || N_down != N_el_down)
         return;
 
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
     double energy = -T * n + NB*(C+epsilon) + L*omega*Np;
-
-    // add data to measurement
-    measure.add("Energy", energy);
 
     // calculate correlation functions and susceptibilities
     fill(sum_n.begin(), sum_n.end(), 0);
@@ -815,6 +826,19 @@ void mc :: do_measurement() {
         chi_sigma_q_im += sin_q_chi[s] * chi_sigma_r[s];
     }
 
+#ifdef MCL_PT
+    measure[myrep].add("Energy", energy);
+    measure[myrep].add("S_rho_q_re", S_rho_q_re);
+    measure[myrep].add("S_rho_q_im", S_rho_q_im);
+    measure[myrep].add("S_sigma_q_re", S_sigma_q_re);
+    measure[myrep].add("S_sigma_q_im", S_sigma_q_im);
+    measure[myrep].add("chi_rho_q_re", chi_rho_q_re);
+    measure[myrep].add("chi_rho_q_im", chi_rho_q_im);
+    measure[myrep].add("chi_sigma_q_re", chi_sigma_q_re);
+    measure[myrep].add("chi_sigma_q_im", chi_sigma_q_im);
+    measure[myrep].add("ph_density", mean_m[L-1]);
+#else
+    measure.add("Energy", energy);
     measure.add("S_rho_q_re", S_rho_q_re);
     measure.add("S_rho_q_im", S_rho_q_im);
     measure.add("S_sigma_q_re", S_sigma_q_re);
@@ -824,6 +848,7 @@ void mc :: do_measurement() {
     measure.add("chi_sigma_q_re", chi_sigma_q_re);
     measure.add("chi_sigma_q_im", chi_sigma_q_im);
     measure.add("ph_density", mean_m[L-1]);
+#endif
 }
 
 
@@ -895,6 +920,23 @@ void mc :: init() {
     recalc_directed_loop_probs();
 
     // add observables
+#ifdef MCL_PT
+    for (uint i = 0; i < gvec.size(); ++i) {
+        measure[i].add_observable("N_up");
+        measure[i].add_observable("N_down");
+        measure[i].add_observable("dublon_rejection_rate");
+        measure[i].add_observable("Energy");
+        measure[i].add_observable("S_rho_q_re");
+        measure[i].add_observable("S_rho_q_im");
+        measure[i].add_observable("S_sigma_q_re");
+        measure[i].add_observable("S_sigma_q_im");
+        measure[i].add_observable("chi_rho_q_re");
+        measure[i].add_observable("chi_rho_q_im");
+        measure[i].add_observable("chi_sigma_q_re");
+        measure[i].add_observable("chi_sigma_q_im");
+        measure[i].add_observable("ph_density");
+    }
+#else
     measure.add_observable("N_up");
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
@@ -908,6 +950,7 @@ void mc :: init() {
     measure.add_observable("chi_sigma_q_re");
     measure.add_observable("chi_sigma_q_im");
     measure.add_observable("ph_density");
+#endif
 }
 
 void mc :: write(string dir) {
@@ -965,13 +1008,22 @@ bool mc :: read(string dir) {
     }
 }
 
+#ifdef MCL_PT
+void mc :: write_output(string dir, int para) {
+#else
 void mc :: write_output(string dir) {
+#endif
     // add evalables
     ofstream f;
     f.open(dir.c_str());
     f << "PARAMETERS" << endl;
+#ifdef MCL_PT
+    param.get_all_with_one_from_specified_array("@G",para,f);
+    measure[para].get_statistics(f);
+#else
     param.get_all(f);
     measure.get_statistics(f);
+#endif
     f << "SIMULATION PROPERTIES" << endl;
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
     f << "C+epsilon = " << C+epsilon << endl;
@@ -980,3 +1032,43 @@ void mc :: write_output(string dir) {
     f << "number of loops per MCS: " << N_loop << endl;
     f << "mu = " << mu << endl;
 }
+
+#ifdef MCL_PT
+void mc_pt :: change_to(int i) {
+    change_parameter(i);
+}
+
+void mc_pt :: change_parameter(int i) {
+    myrep = i;
+    g=gvec[myrep];
+    if (myrep == 0)
+        label = 1;
+    else if (myrep == (int) (gvec.size() - 1))
+        label = -1;
+}
+
+bool mc_pt :: request_global_update() {
+    return sweep && (sweep % pt_spacing == 0);
+}
+
+double mc_pt :: get_weight(int f) {
+    int n_phonon = 0;
+    for (uint i = 0; i < M; ++i) {
+        if (sm[i] == identity)
+            continue;
+        switch (sm[i].type) {
+            case creator_left:
+            case creator_right:
+            case annihilator_left:
+            case annihilator_right:
+                n_phonon++;
+                break;
+        }
+    }
+    return n_phonon * log(gvec[f] / g);
+}
+
+int mc_pt :: get_label() {
+    return label;
+}
+#endif
