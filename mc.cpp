@@ -767,6 +767,10 @@ void mc :: do_measurement() {
         chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0] + 1./T/(n+1)/(n+1)*sum_nn[s];
         chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0] + 1./T/(n+1)/(n+1)*sum_ss[s];
         mean_m[s] = 1./n*sum_m[s];
+        // accumulate ms
+        if (s > 0) {
+            mean_m[s] += mean_m[s-1];
+        }
     }
 
     // Fourier transform
@@ -797,7 +801,7 @@ void mc :: do_measurement() {
     measure.add("chi_rho_q_im", chi_rho_q_im);
     measure.add("chi_sigma_q_re", chi_sigma_q_re);
     measure.add("chi_sigma_q_im", chi_sigma_q_im);
-    measure.add("m_i", mean_m);
+    measure.add("m_i", mean_m[L-1]);
 }
 
 
@@ -873,7 +877,7 @@ void mc :: init() {
     measure.add_observable("chi_rho_q_im");
     measure.add_observable("chi_sigma_q_re");
     measure.add_observable("chi_sigma_q_im");
-    measure.add_vectorobservable("m_i", L);
+    measure.add_observable("m_i");
 }
 
 void mc :: write(string dir) {
