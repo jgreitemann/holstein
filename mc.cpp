@@ -771,6 +771,7 @@ void mc :: do_measurement() {
             mean_m[s] += mean_m[s-1];
         }
     }
+    mean_m[L-1] /= L;
 
     // Fourier transform
     double S_rho_q_re = 0.0;
@@ -800,7 +801,7 @@ void mc :: do_measurement() {
     measure.add("chi_rho_q_im", chi_rho_q_im);
     measure.add("chi_sigma_q_re", chi_sigma_q_re);
     measure.add("chi_sigma_q_im", chi_sigma_q_im);
-    measure.add("m_i", mean_m[L-1]);
+    measure.add("ph_density", mean_m[L-1]);
 }
 
 
@@ -876,7 +877,7 @@ void mc :: init() {
     measure.add_observable("chi_rho_q_im");
     measure.add_observable("chi_sigma_q_re");
     measure.add_observable("chi_sigma_q_im");
-    measure.add_observable("m_i");
+    measure.add_observable("ph_density");
 }
 
 void mc :: write(string dir) {
