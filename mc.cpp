@@ -860,8 +860,8 @@ void mc :: init() {
         }
         mu_index = -(mu_adjust_N-1);
         mu = mus[abs(mu_index)];
-        recalc_directed_loop_probs();
     }
+    recalc_directed_loop_probs();
 
     // add observables
     measure.add_observable("N_up");
