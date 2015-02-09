@@ -2,76 +2,65 @@ DEFINES+= -DMCL_DUMP_BUFFER=0
 DEFINES+= -DMCL_MEASUREMENTS_APPEND=0
 DEFINES+= -DMCL_MCL_RNG_MT
 
-MODE=MPI
-#MODE=SINGLE
-#MODE=PT
-
-OBJS = dump.o parser.o measurements.o evalable.o observable.o random.o mc.o main.o
-OBJSLN = dump.LN.o parser.LN.o measurements.LN.o evalable.LN.o observable.LN.o random.LN.o mc.LN.o runner_single.LN.o merge.LN.o
-
-ifeq ($(MODE),MPI)
-  OBJS+=runner.o
-endif
-
-ifeq ($(MODE),SINGLE)
-  OBJS+=runner_single.o
-  DEFINES+= -DMCL_SINGLE
-endif
-
-ifeq ($(MODE),PT)
-  OBJS+=runner.o
-  DEFINES+= -DMCL_PT
-endif
+OBJS_MPI = dump.mpi.o parser.mpi.o measurements.mpi.o evalable.mpi.o observable.mpi.o random.mpi.o mc.mpi.o main.mpi.o runner.mpi.o
+OBJS_SINGLE = dump.single.o parser.single.o measurements.single.o evalable.single.o observable.single.o random.single.o mc.single.o main.single.o runner_single.single.o
+DEFINES_SINGLE = $(DEFINES) -DMCL_SINGLE
+OBJS_PT = dump.pt.o parser.pt.o measurements.pt.o evalable.pt.o observable.pt.o random.pt.o mc.pt.o main.pt.o runner.pt.o
+DEFINES_PT = -DMCL_PT
 
 MCLL  = $(MC_CODE_DIR)/load_leveller/trunk
 APPMCLL = $(MC_CODE_DIR)/holstein
 
-CC = $(MPICC)
-LD = $(MPICC)
-ifeq ($(MODE),SINGLE)
-  CC=g++
-  LD=g++
-endif
-CFLAGS  = -O3 -Wno-deprecated --short-enums -g -ansi -ffast-math -Wall $(DEFINES)
+CC_MPI = $(MPICC)
+LD_MPI = $(MPICC)
+CC_SINGLE = g++
+LD_SINGLE = g++
+CC_PT = $(MPICC)
+LD_PT = $(MPICC)
+CFLAGS = -O3 -Wno-deprecated --short-enums -g -ansi -ffast-math -Wall
+CFLAGS_MPI  = $(CFLAGS) $(DEFINES)
+CFLAGS_SINGLE  = $(CFLAGS) $(DEFINES_SINGLE)
+CFLAGS_PT  = $(CFLAGS) $(DEFINES_PT)
+
 INCLUDE = -I$(MCLL) -I$(APPMCLL) 
 LDFLAGS = -lgsl -lgslcblas -lm
-SUPERLP = 
-
-CCLN = g++
-LDLN = g++
-CFLAGSLN  = $(CFLAGS) -DMCL_SINGLE
-INCLUDELN = $(INCLUDE)
-LDFLAGSLN = $(LDFLAGS)
-SUPERLPLN = $(SUPERLP)
 
 RM = /bin/rm -f
 
-#all: mc merge cleano
-all: mc cleano
+all: mc mc_single cleano
 
-mc : $(OBJS)
-	$(LD) $(LDFLAGS) -o $@ $(OBJS) $(SUPERLP)
+mc : $(OBJS_MPI)
+	$(LD_MPI) $(LDFLAGS) -o $@ $(OBJS_MPI)
 
-merge : $(OBJSLN)
-	$(LDLN) $(LDFLAGSLN) -o $@ $(OBJSLN) $(SUPERLPLN)
+%.mpi.o : $(APPMCLL)/%.cpp
+	$(CC_MPI) -c $(CFLAGS_MPI) $(INCLUDE) $< -o $@
 
-%.o : $(APPMCLL)/%.cpp
-	$(CC) -c $(CFLAGS) $(INCLUDE) $< -o $@
+%.mpi.o : $(MCLL)/%.cpp
+	$(CC_MPI) -c $(CFLAGS_MPI) $(INCLUDE) $< -o $@
 
-%.LN.o : $(APPMCLL)/%.cpp
-	$(CCLN) -c $(CFLAGSLN) $(INCLUDELN)  $< -o $@
+mc_single : $(OBJS_SINGLE)
+	$(LD_SINGLE) $(LDFLAGS) -o $@ $(OBJS_SINGLE)
 
-%.o : $(MCLL)/%.cpp
-	$(CC) -c $(CFLAGS) $(INCLUDE) $< -o $@
+%.single.o : $(APPMCLL)/%.cpp
+	$(CC_SINGLE) -c $(CFLAGS_SINGLE) $(INCLUDE) $< -o $@
 
-%.LN.o : $(MCLL)/%.cpp
-	$(CCLN) -c $(CFLAGSLN) $(INCLUDELN) $< -o $@ 
+%.single.o : $(MCLL)/%.cpp
+	$(CC_SINGLE) -c $(CFLAGS_SINGLE) $(INCLUDE) $< -o $@
+
+mc_pt : $(OBJS_PT)
+	$(LD_PT) $(LDFLAGS) -o $@ $(OBJS_PT)
+
+%.pt.o : $(APPMCLL)/%.cpp
+	$(CC_PT) -c $(CFLAGS_PT) $(INCLUDE) $< -o $@
+
+%.pt.o : $(MCLL)/%.cpp
+	$(CC_PT) -c $(CFLAGS_PT) $(INCLUDE) $< -o $@
 
 clean:
-	$(RM) mc merge $(OBJS) $(OBJSLN)
+	$(RM) mc mc_single mc_pt $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT)
 
 cleano:
-	$(RM) $(OBJS) $(OBJSLN)
+	$(RM) $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT)
 
 
 
