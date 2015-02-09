@@ -1,5 +1,6 @@
 #include "mc.h"
 #include <cstdlib>
+#include <iomanip>
 #include <algorithm>
 #include <functional>
 #include <cmath>
@@ -258,6 +259,27 @@ void mc :: do_update() {
                 double m, b, c00, c01, c11, sumsq;
                 gsl_fit_linear(&mus[0], 1, &N_mus[0], 1, mu_adjust_N, &b, &m, &c00, &c01, &c11, &sumsq);
                 mu = -b / m;
+
+                // save results to database
+                stringstream fname;
+                fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega << ".mu";
+                ofstream fstr(fname.str().c_str());
+                if (fstr.is_open()) {
+                    fstr << mu << " " << U << " " << g << " " << omega << endl;
+                    fstr << "# (above) mu_best U g omega" << endl << endl << endl;
+                    fstr << "# (below) mu DeltaN" << endl;
+                    for (uint i = 0; i < mu_adjust_N; ++i) {
+                        fstr << mus[i] << " " << N_mus[i] << endl;
+                    }
+                    fstr << "# L = " << L << endl;
+                    fstr << "# T = " << T << endl;
+                    fstr << "# mu_adjust_therm = " << mu_adjust_therm << endl;
+                    fstr << "# mu_adjust_sweep = " << mu_adjust_sweep << endl;
+                    fstr << "# linear model: f(x) = " << m << "*x+" << b << endl;
+                } else {
+                    cerr << "Warning: could not write results from mu adjustment to file " << fname.str() << endl;
+                }
+
                 recalc_directed_loop_probs();
             } else {
                 mu = mus[abs(++mu_index)];
@@ -850,6 +872,14 @@ void mc :: init() {
     N_loop = vtx_visited * M;
     sm.resize(M, identity);
 
+    // read mu value from database if available
+    stringstream fname;
+    fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega << ".mu";
+    ifstream fstr(fname.str().c_str());
+    if (fstr.is_open()) {
+        fstr >> mu;
+    }
+
     // set up adjustment of mu if desired
     if (mu_adjust) {
         mus.resize(mu_adjust_N);
@@ -949,10 +979,4 @@ void mc :: write_output(string dir) {
     f << "average worm length: " << avg_worm_len << endl;
     f << "number of loops per MCS: " << N_loop << endl;
     f << "mu = " << mu << endl;
-    if (mu_adjust) {
-        f << "table of mu values and mean particle number deviations from desired values:" << endl;
-        for (uint i = 0; i < mus.size(); ++i) {
-            f << mus[i] << " " << N_mus[i] << endl;
-        }
-    }
 }
