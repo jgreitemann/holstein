@@ -153,6 +153,7 @@ private:
     int myrep;
     int pt_spacing;
     vector<double> gvec;
+    vector<double> muvec;
 #endif
     double epsilon;
     double q_S, q_chi;

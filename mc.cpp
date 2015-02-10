@@ -22,6 +22,10 @@ inline leg straight(leg l) {
     return static_cast<leg>(l ^ 3);
 }
 
+double default_mu(double U, double g, double omega) {
+    return g*g/omega;
+}
+
 mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
@@ -37,8 +41,8 @@ mc :: mc (string dir) {
     pt_spacing = param.value_or_default<int>("PT_SPACING", 100);
 #else
     g = param.value_or_default<double>("G", 0.);
+    mu = param.value_or_default<double>("MU", default_mu(U, g, omega));
 #endif
-    mu = param.value_or_default<double>("MU", g*g/omega);
     q_chi = param.value_or_default<double>("Q_CHI", M_PI);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
@@ -53,6 +57,11 @@ mc :: mc (string dir) {
     mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
+#ifdef MCL_PT
+    // mu adjustment must not be used in conjunction with PT
+    assert(!mu_adjust);
+#endif
+
 
     if (mu_adjust) {
         total_therm = 2*therm+2*mu_adjust_N*mu_adjust_sweep + (2*mu_adjust_N-2)*mu_adjust_therm;
@@ -898,12 +907,26 @@ void mc :: init() {
     sm.resize(M, identity);
 
     // read mu value from database if available
+#ifdef MCL_PT
+    muvec.resize(gvec.size());
+    for (uint i = 0; i < gvec.size(); ++i) {
+        stringstream fname;
+        fname << "../mus/" << setprecision(4) << U << "_" << gvec[i] << "_" << omega << ".mu";
+        ifstream fstr(fname.str().c_str());
+        if (fstr.is_open()) {
+            fstr >> muvec[i];
+        } else {
+            muvec[i] = default_mu(U, gvec[i], omega);
+        }
+    }
+#else
     stringstream fname;
     fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega << ".mu";
     ifstream fstr(fname.str().c_str());
     if (fstr.is_open()) {
         fstr >> mu;
     }
+#endif
 
     // set up adjustment of mu if desired
     if (mu_adjust) {
@@ -971,6 +994,9 @@ void mc :: write(string dir) {
         d.write(mus);
         d.write(N_mus);
     }
+#ifdef MCL_PT
+    d.write(muvec);
+#endif
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -1002,6 +1028,9 @@ bool mc :: read(string dir) {
             d.read(mus);
             d.read(N_mus);
         }
+#ifdef MCL_PT
+        d.read(muvec);
+#endif
         d.close();
         recalc_directed_loop_probs();
         return true;
@@ -1040,7 +1069,9 @@ void mc_pt :: change_to(int i) {
 
 void mc_pt :: change_parameter(int i) {
     myrep = i;
-    g=gvec[myrep];
+    g = gvec[myrep];
+    mu = muvec[myrep];
+    recalc_directed_loop_probs();
     if (myrep == 0)
         label = 1;
     else if (myrep == (int) (gvec.size() - 1))
