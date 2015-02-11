@@ -143,7 +143,7 @@ private:
     uint L;
     double T;
     uint N_el_up, N_el_down;
-    double a;
+    double enlargement_factor;
     double U;
     double mu;
     double omega;
@@ -169,6 +169,9 @@ private:
     uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
+#ifdef MCL_PT
+    vector<double> other_weight;
+#endif
     vector<operator_type> vtx_type;
     vector<double> prob;
     double avg_worm_len;
@@ -181,6 +184,7 @@ private:
     int mu_index;
 
     // workspace variables
+    double a[5][6];
     vector<vector<subseq_node> > subseq;
     vector<int> initial_Nd;
     vector<el_state> current_state;
@@ -210,6 +214,7 @@ private:
         return v;
     }
 
+    void recalc_weights(vector<double> &weight, double mu);
     void recalc_directed_loop_probs();
 
 public:    

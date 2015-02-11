@@ -33,7 +33,7 @@ mc :: mc (string dir) {
     T = param.value_or_default<double>("T", 1.);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
-    a = param.value_or_default<double>("A", 1.3);
+    enlargement_factor = param.value_or_default<double>("ENLARGEMENT_FACTOR", 1.3);
     U = param.value_or_default<double>("U", 1.);
     omega = param.value_or_default<double>("OMEGA", 1.);
 #ifdef MCL_PT
@@ -62,7 +62,7 @@ mc :: mc (string dir) {
     assert(!mu_adjust);
 #endif
 
-
+    // calculate total length of thermalization phase
     if (mu_adjust) {
         total_therm = 2*therm+2*mu_adjust_N*mu_adjust_sweep + (2*mu_adjust_N-2)*mu_adjust_therm;
     } else {
@@ -92,6 +92,7 @@ mc :: mc (string dir) {
     cos_q_S.resize(L);
     sin_q_S.resize(L);
 #ifdef MCL_PT
+    other_weight.resize(256);
     measure.resize(gvec.size());
 #endif
 
@@ -104,10 +105,9 @@ mc :: mc (string dir) {
     }
 }
 
-void mc :: recalc_directed_loop_probs() {
+void mc :: recalc_weights(vector<double> &weight, double mu) {
     fill(weight.begin(), weight.end(), 0.);
     fill(vtx_type.begin(), vtx_type.end(), electron_diag);
-    fill(prob.begin(), prob.end(), 0.);
 
     // define weights
     double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -127,34 +127,46 @@ void mc :: recalc_directed_loop_probs() {
     }
 
     // calculate loop segment weights
-    double a[][6] = {
-                        {0, 0, 0, 0, 0, 0}, // b_1
-                        {0, 0, 0, 0, 0, 0}, // b_2
-                        { // a
-                            0.5 * (W[2] + W[4] - W[6]),
-                            0.5 * (W[0] + W[3] - W[6]),
-                            0.5 * (W[1] + W[4] - W[6]),
-                            0.5 * (W[1] + W[3] - W[6]),
-                            0.5 * (W[4] + W[5] - W[6]),
-                            0.5 * (W[3] + W[5] - W[6])
-                        },
-                        { // b
-                            0.5 * (W[2] - W[4] + W[6]),
-                            0.5 * (W[0] - W[3] + W[6]),
-                            0.5 * (W[1] - W[4] + W[6]),
-                            0.5 * (W[1] - W[3] + W[6]),
-                            0.5 * (W[4] - W[5] + W[6]),
-                            0.5 * (W[3] - W[5] + W[6])
-                        },
-                        { // c
-                            0.5 * (-W[2] + W[4] + W[6]),
-                            0.5 * (-W[0] + W[3] + W[6]),
-                            0.5 * (-W[1] + W[4] + W[6]),
-                            0.5 * (-W[1] + W[3] + W[6]),
-                            0.5 * (-W[4] + W[5] + W[6]),
-                            0.5 * (-W[3] + W[5] + W[6])
-                        }
-                    };
+    // b1
+    a[0][0] = 0;
+    a[0][1] = 0;
+    a[0][2] = 0;
+    a[0][3] = 0;
+    a[0][4] = 0;
+    a[0][5] = 0;
+
+    // b2
+    a[1][0] = 0;
+    a[1][1] = 0;
+    a[1][2] = 0;
+    a[1][3] = 0;
+    a[1][4] = 0;
+    a[1][5] = 0;
+
+    // a
+    a[2][0] = 0.5 * (W[2] + W[4] - W[6]);
+    a[2][1] = 0.5 * (W[0] + W[3] - W[6]);
+    a[2][2] = 0.5 * (W[1] + W[4] - W[6]);
+    a[2][3] = 0.5 * (W[1] + W[3] - W[6]);
+    a[2][4] = 0.5 * (W[4] + W[5] - W[6]);
+    a[2][5] = 0.5 * (W[3] + W[5] - W[6]);
+
+    // b
+    a[3][0] = 0.5 * (W[2] - W[4] + W[6]);
+    a[3][1] = 0.5 * (W[0] - W[3] + W[6]);
+    a[3][2] = 0.5 * (W[1] - W[4] + W[6]);
+    a[3][3] = 0.5 * (W[1] - W[3] + W[6]);
+    a[3][4] = 0.5 * (W[4] - W[5] + W[6]);
+    a[3][5] = 0.5 * (W[3] - W[5] + W[6]);
+
+    // c
+    a[4][0] = 0.5 * (-W[2] + W[4] + W[6]);
+    a[4][1] = 0.5 * (-W[0] + W[3] + W[6]);
+    a[4][2] = 0.5 * (-W[1] + W[4] + W[6]);
+    a[4][3] = 0.5 * (-W[1] + W[3] + W[6]);
+    a[4][4] = 0.5 * (-W[4] + W[5] + W[6]);
+    a[4][5] = 0.5 * (-W[3] + W[5] + W[6]);
+
     for (uint i = 0; i < 6; ++i) {
         a[1][i] = (a[3][i] < 0) ? -2*a[3][i] : 0;
         a[0][i] = (a[4][i] < 0) ? -2*a[4][i] : 0;
@@ -195,6 +207,11 @@ void mc :: recalc_directed_loop_probs() {
         vtx_type[vtx] = static_cast<operator_type>(j-1);
     }
     file1.close();
+}
+
+void mc :: recalc_directed_loop_probs() {
+    recalc_weights(weight, mu);
+    fill(prob.begin(), prob.end(), 0.);
 
     // calculate transition probabilities
     ifstream file2("../assignments.txt");
@@ -203,6 +220,7 @@ void mc :: recalc_directed_loop_probs() {
         exit(1);
     }
     assignment assign;
+    int i, j;
     while (file2 >> assign.int_repr >> i >> j) {
         if (assign.worm >= N_WORM) {
             continue;
@@ -541,8 +559,8 @@ void mc :: do_update() {
     }
 
     // adjust M during thermalization
-    if (!is_thermalized() && a*n > M) {
-        M = a*n;
+    if (!is_thermalized() && enlargement_factor*n > M) {
+        M = enlargement_factor*n;
         sm.resize(M, identity);
     }
     assert(n <= M); // You might need to increase "a" or the
@@ -899,7 +917,7 @@ void mc :: init() {
 
     n = 0;
     sweep=0;
-    M = (uint)(a * init_n_max);
+    M = (uint)(enlargement_factor * init_n_max);
     dublon_rejected = true;
     avg_worm_len = 0;
     worm_len_sample_size = 0;
@@ -1063,11 +1081,11 @@ void mc :: write_output(string dir) {
 }
 
 #ifdef MCL_PT
-void mc_pt :: change_to(int i) {
+void mc :: change_to(int i) {
     change_parameter(i);
 }
 
-void mc_pt :: change_parameter(int i) {
+void mc :: change_parameter(int i) {
     myrep = i;
     g = gvec[myrep];
     mu = muvec[myrep];
@@ -1078,16 +1096,34 @@ void mc_pt :: change_parameter(int i) {
         label = -1;
 }
 
-bool mc_pt :: request_global_update() {
+bool mc :: request_global_update() {
     return sweep && (sweep % pt_spacing == 0);
 }
 
-double mc_pt :: get_weight(int f) {
+double mc :: get_weight(int f) {
+    recalc_weights(other_weight, muvec[f]);
+    double log_weight = 0.;
     int n_phonon = 0;
+    bond_operator b;
+    vertex vtx;
+    current_state = state;
     for (uint i = 0; i < M; ++i) {
         if (sm[i] == identity)
             continue;
-        switch (sm[i].type) {
+        b = sm[i];
+        switch (b.type) {
+            case electron_diag:
+                vtx = diag_vertex_at_bond(current_state, b.bond);
+                log_weight += log(other_weight[vtx.int_repr] / weight[vtx.int_repr]);
+                break;
+            case up_hopping:
+                current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
+                current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+                break;
+            case down_hopping:
+                current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
+                current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
+                break;
             case creator_left:
             case creator_right:
             case annihilator_left:
@@ -1096,10 +1132,10 @@ double mc_pt :: get_weight(int f) {
                 break;
         }
     }
-    return n_phonon * log(gvec[f] / g);
+    return n_phonon * log(gvec[f] / g) + log_weight;
 }
 
-int mc_pt :: get_label() {
+int mc :: get_label() {
     return label;
 }
 #endif
