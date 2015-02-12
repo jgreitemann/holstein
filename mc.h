@@ -214,7 +214,7 @@ private:
         return v;
     }
 
-    void recalc_weights(vector<double> &weight, double mu);
+    void recalc_weights(vector<double> &weight, double mu, double &epsilon);
     void recalc_directed_loop_probs();
 
 public:    

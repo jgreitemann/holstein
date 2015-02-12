@@ -105,7 +105,7 @@ mc :: mc (string dir) {
     }
 }
 
-void mc :: recalc_weights(vector<double> &weight, double mu) {
+void mc :: recalc_weights(vector<double> &weight, double mu, double &epsilon) {
     fill(weight.begin(), weight.end(), 0.);
     fill(vtx_type.begin(), vtx_type.end(), electron_diag);
 
@@ -210,7 +210,7 @@ void mc :: recalc_weights(vector<double> &weight, double mu) {
 }
 
 void mc :: recalc_directed_loop_probs() {
-    recalc_weights(weight, mu);
+    recalc_weights(weight, mu, epsilon);
     fill(prob.begin(), prob.end(), 0.);
 
     // calculate transition probabilities
@@ -1101,7 +1101,8 @@ bool mc :: request_global_update() {
 }
 
 double mc :: get_weight(int f) {
-    recalc_weights(other_weight, muvec[f]);
+    double other_epsilon;
+    recalc_weights(other_weight, muvec[f], other_epsilon);
     double log_weight = 0.;
     int n_phonon = 0;
     bond_operator b;
@@ -1132,6 +1133,7 @@ double mc :: get_weight(int f) {
                 break;
         }
     }
+    cout << log_weight << endl;
     return n_phonon * log(gvec[f] / g) + log_weight;
 }
 
