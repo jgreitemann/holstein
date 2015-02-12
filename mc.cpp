@@ -110,7 +110,7 @@ void mc :: recalc_weights(vector<double> &weight, double mu, double &epsilon) {
     fill(vtx_type.begin(), vtx_type.end(), electron_diag);
 
     // define weights
-    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
     double W[] = {
                      C - U/4 - 2*mu,
                      C - U/4,
@@ -121,7 +121,8 @@ void mc :: recalc_weights(vector<double> &weight, double mu, double &epsilon) {
                      1.
                  };
     for (uint i = 0; i < 7; ++i) {
-        assert(W[i] >= -1e-14);
+        assert(W[i] >= -1e-14
+               || ((cerr << "W[" << i << "]=" << W[i] << endl) && false));
         if (W[i] < 0)
             W[i] = 0.;
     }
@@ -766,7 +767,7 @@ void mc :: do_measurement() {
     if (N_up != N_el_up || N_down != N_el_down)
         return;
 
-    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
     double energy = -T * n + NB*(C+epsilon) + L*omega*Np;
 
     // calculate correlation functions and susceptibilities
@@ -1072,7 +1073,7 @@ void mc :: write_output(string dir) {
     measure.get_statistics(f);
 #endif
     f << "SIMULATION PROPERTIES" << endl;
-    double C = (U > -abs(mu)/4) ? (U/4 + 2*abs(mu)) : (-U/4);
+    double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
     f << "C+epsilon = " << C+epsilon << endl;
     f << "operator string max. length: " << M << endl;
     f << "average worm length: " << avg_worm_len << endl;
