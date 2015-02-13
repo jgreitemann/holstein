@@ -75,7 +75,9 @@ union vertex {
         el_state top_left     : 2;
     };
     byte int_repr;
-    el_state get_state(leg l) { return static_cast<el_state>(int_repr>>(2*l) & 3); }
+    el_state get_state(leg l) {
+        return static_cast<el_state>(int_repr>>(2*l) & 3);
+    }
 };
 
 union assignment {
@@ -195,7 +197,8 @@ private:
     vector<double> N_mus;
 
 
-    inline vertex diag_vertex_at_bond (vector<el_state>& state, unsigned short b) {
+    inline vertex diag_vertex_at_bond (vector<el_state>& state,
+                                       unsigned short b) {
         vertex v;
         v.bottom_left = state[LEFT_SITE(b)];
         v.bottom_right = state[RIGHT_SITE(b)];
