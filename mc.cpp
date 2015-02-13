@@ -26,11 +26,11 @@ mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
-    T = param.value_or_default<double>("T", 1.);
+    T = param.value_or_default<double>("T", .05);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
     a = param.value_or_default<double>("A", 1.3);
-    U = param.value_or_default<double>("U", 1.);
+    U = param.value_or_default<double>("U", 0.);
     omega = param.value_or_default<double>("OMEGA", 1.);
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
@@ -40,11 +40,11 @@ mc :: mc (string dir) {
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
-    Np = param.value_or_default<int>("N_P", 10);
-    mu_adjust = param.value_or_default<bool>("MU_ADJUST", 1);
-    mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1*abs(mu));
-    mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 20);
-    mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 1000);
+    Np = param.value_or_default<int>("N_P", 20);
+    mu_adjust = param.value_or_default<bool>("MU_ADJUST", 0);
+    mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1);
+    mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 10);
+    mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 5000);
     mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
