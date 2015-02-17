@@ -54,6 +54,25 @@ enum operator_type {
     phonon_diag
 };
 
+enum vtx_type {
+    W_invalid,
+    W_1m,
+    W_10,
+    W_1p,
+    W_2m,
+    W_2p,
+    W_3,
+    W_4
+};
+
+enum assignment_role {
+    role_b1,
+    role_b2,
+    role_a,
+    role_b,
+    role_c
+};
+
 struct bond_operator {
     operator_type type  : 3;
     unsigned short bond : 13;
@@ -76,6 +95,12 @@ union vertex {
     };
     byte int_repr;
     el_state get_state(leg l) { return static_cast<el_state>(int_repr>>(2*l) & 3); }
+    vtx_type type() {
+        return; // TODO
+    }
+    operator_type op_type() {
+        return; // TODO
+    }
 };
 
 union assignment {
@@ -162,7 +187,6 @@ private:
     uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
-    vector<operator_type> vtx_type;
     vector<double> prob;
     double avg_worm_len;
     uint worm_len_sample_size;
@@ -172,6 +196,12 @@ private:
     int mu_adjust_therm;
     int mu_adjust_sweep;
     int mu_index;
+
+    // vertex/assignment classification
+    vector<assignment_role> role;
+    vector<int> assign_group;
+    vector<vtx_type> v_type;
+    vector<operator_type> op_type;
 
     // workspace variables
     vector<vector<subseq_node> > subseq;
@@ -205,6 +235,8 @@ private:
     }
 
     void recalc_directed_loop_probs();
+    void init_assignments();
+    void init_vertices();
 
 public:    
     parser param;

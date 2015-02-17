@@ -981,3 +981,48 @@ void mc :: write_output(string dir) {
     f << "number of loops per MCS: " << N_loop << endl;
     f << "mu = " << mu << endl;
 }
+
+void init_assignments() {
+    fill(assign_group.begin(), assign_group.end(), 0);
+    assign_group.resize(N_WORM << 12, 0);
+    role.resize(N_WORM << 12);
+    assign mat[3][3];
+    for (int worm_i = 0; worm_i < N_WORM; ++worm_i) {
+        mat[0][0].worm = static_cast<worm_type>(worm_i);
+        for (int vtx_i = 0; vtx_i <= 256; ++vtx_i) {
+            if (v_type[vtx_i] == W_invalid)
+                continue;
+            mat[0][0].vtx.int_repr = vtx_i;
+            for (int ent_leg_i = bottom_left; ent_leg_i <= top_left; ++ent_leg_i) {
+                mat[0][0].ent_leg = static_cast<leg>(ent_leg_i);
+                mat[0][0].exit_leg = mat[0][0].ent_leg;
+                if (assign_group[mat[0][0].int_repr] != 0)
+                    continue;
+                int k = 1;
+                for (int exit_leg_i = (ent_leg_i+1)%4;
+                        exit_leg_i != ent_leg_i;
+                        exit_leg_i=(exit_leg_i+1)%4) {
+                    mat[0][k] = mat[0][0];
+                    mat[0][k].exit_leg = static_cast<leg>(exit_leg_i);
+                    mat[k][0] = mat[0][k].// TODO
+                    if (v_type[mat[0][k].flipped_vtx().int_repr]) {
+                        ++k;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void init_vertices() {
+    v_type.resize(256);
+    op_type.resize(256);
+    vertex vtx;
+    for (int vtx_i = 0; vtx_i <= 256; ++vtx_i) {
+        vtx.int_repr = vtx_i;
+        v_type[vtx_i] = vtx.type();
+        if (v_type[vtx_i] != W_invalid) {
+            op_type[vtx_i] = vtx.op_type();
+        }
+    }
+}
