@@ -6,20 +6,25 @@
 #include <cmath>
 #include <gsl/gsl_fit.h>
 
-inline byte number_of_electrons (el_state s) {
-    return (s & 1) + (s >> 1);
-}
+void bubble_sort_perm (int *a, int *p, uint k) {
+    // initialize permutation
+    for (uint i = 0; i < k; ++i) {
+        p[i] = i;
+    }
 
-inline signed char local_magnetization (el_state s) {
-    return (s & 1) - (s >> 1);
-}
-
-inline el_state flipped_state (el_state to_flip, worm_type what) {
-    return static_cast<el_state>(to_flip ^ (what+1));
-}
-
-inline leg straight(leg l) {
-    return static_cast<leg>(l ^ 3);
+    // bubble sort
+    for (uint i = 0; i < k-1; ++i) {
+        for (uint j = 0; j < k-i-1; ++j) {
+            if (a[j] > a[j+1]) {
+                int tmp1 = a[j];
+                int tmp2 = p[j];
+                a[j] = a[j+1];
+                p[j] = p[j+1];
+                a[j+1] = tmp1;
+                p[j+1] = tmp2;
+            }
+        }
+    }
 }
 
 mc :: mc (string dir) {
@@ -56,8 +61,9 @@ mc :: mc (string dir) {
     }
 
     // initialize vectors
+    init_vertices();
+    init_assignments();
     weight.resize(256);
-    vtx_type.resize(256);
     prob.resize(N_WORM<<12);
     subseq.resize(L, vector<subseq_node>());
     initial_Nd.resize(L);
@@ -89,7 +95,6 @@ mc :: mc (string dir) {
 
 void mc :: recalc_directed_loop_probs() {
     fill(weight.begin(), weight.end(), 0.);
-    fill(vtx_type.begin(), vtx_type.end(), electron_diag);
     fill(prob.begin(), prob.end(), 0.);
 
     // define weights
@@ -176,7 +181,6 @@ void mc :: recalc_directed_loop_probs() {
     }
     while (file1 >> vtx >> j >> i) {
         weight[vtx] = W[i-1];
-        vtx_type[vtx] = static_cast<operator_type>(j-1);
     }
     file1.close();
 
@@ -226,7 +230,10 @@ mc :: ~mc() {
     occ.clear();
     sm.clear();
     weight.clear();
-    vtx_type.clear();
+    v_type.clear();
+    op_type.clear();
+    role.clear();
+    assign_group.clear();
     prob.clear();
     subseq.clear();
     initial_Nd.clear();
@@ -684,7 +691,7 @@ void mc :: do_update() {
             if (sm[i] == identity)
                 continue;
             if (sm[i].type == electron_diag || sm[i].type == up_hopping || sm[i].type == down_hopping)
-                sm[i].type = vtx_type[vtx[p].int_repr];
+                sm[i].type = op_type[vtx[p].int_repr];
             ++p;
         }
 
@@ -982,11 +989,12 @@ void mc :: write_output(string dir) {
     f << "mu = " << mu << endl;
 }
 
-void init_assignments() {
+void mc :: init_assignments() {
     fill(assign_group.begin(), assign_group.end(), 0);
     assign_group.resize(N_WORM << 12, 0);
-    role.resize(N_WORM << 12);
-    assign mat[3][3];
+    fill(role.begin(), role.end(), no_role);
+    role.resize(N_WORM << 12, no_role);
+    assignment mat[3][3];
     for (int worm_i = 0; worm_i < N_WORM; ++worm_i) {
         mat[0][0].worm = static_cast<worm_type>(worm_i);
         for (int vtx_i = 0; vtx_i <= 256; ++vtx_i) {
@@ -994,27 +1002,115 @@ void init_assignments() {
                 continue;
             mat[0][0].vtx.int_repr = vtx_i;
             for (int ent_leg_i = bottom_left; ent_leg_i <= top_left; ++ent_leg_i) {
+                // find suitable top left element as anchor for new group
                 mat[0][0].ent_leg = static_cast<leg>(ent_leg_i);
+                if (mat[0][0].worm == dublon_worm) {
+                    el_state ent_state = mat[0][0].vtx.get_state(mat[0][0].ent_leg);
+                    if (ent_state != empty && ent_state != dublon) {
+                        continue;
+                    }
+                }
                 mat[0][0].exit_leg = mat[0][0].ent_leg;
                 if (assign_group[mat[0][0].int_repr] != 0)
                     continue;
+
+                // spawn first row and column of this group and fill in main diagonal
                 int k = 1;
+                int W[3];
+                W[0] = v_type[mat[0][0].vtx.int_repr];
                 for (int exit_leg_i = (ent_leg_i+1)%4;
-                        exit_leg_i != ent_leg_i;
+                        exit_leg_i != ent_leg_i && k < 3;
                         exit_leg_i=(exit_leg_i+1)%4) {
                     mat[0][k] = mat[0][0];
                     mat[0][k].exit_leg = static_cast<leg>(exit_leg_i);
-                    mat[k][0] = mat[0][k].// TODO
-                    if (v_type[mat[0][k].flipped_vtx().int_repr]) {
+                    mat[k][0] = mat[0][k].flipped_assign();
+                    W[k] = v_type[mat[k][0].vtx.int_repr];
+                    if (W[k] != W_invalid) {
+                        mat[k][k] = mat[k][0];
+                        mat[k][k].exit_leg = mat[k][k].ent_leg;
                         ++k;
                     }
+                }
+
+                // find remaining off-diagonals in case of a 3x3 group
+                if (k == 3) {
+                    mat[1][2] = mat[1][1];
+                    for (int exit_leg_i = bottom_left; exit_leg_i <= top_left; ++exit_leg_i) {
+                        mat[1][2].exit_leg = static_cast<leg>(exit_leg_i);
+                        if (mat[1][2].worm == dublon_worm) {
+                            el_state ent_state = mat[1][2].vtx.get_state(mat[1][2].ent_leg);
+                            if (ent_state != empty && ent_state != dublon) {
+                                continue;
+                            }
+                        }
+                        if (mat[1][2] == mat[1][0] || mat[1][2] == mat[1][1])
+                            continue;
+                        mat[2][1] = mat[1][2].flipped_assign();
+                        if (v_type[mat[2][1].vtx.int_repr] == W_invalid)
+                            continue;
+                        assert(mat[2][1].vtx == mat[2][2].vtx);
+                        break;
+                    }
+                } else if (k == 2) {
+                    W[3] = 999;
+                } else {
+                    cerr << "Found an assignment group of size " << k << "!" << endl;
+                }
+
+                int p[3];
+                bubble_sort_perm(W, p, k);
+
+                // identify group
+                int group = -1;
+                if (k == 3) {
+                    switch (W[0]) {
+                        case W_1p: group = 0; break;
+                        case W_1m: group = 1; break;
+                        case W_10:
+                            switch (W[1]) {
+                                case W_2p: group = 2; break;
+                                case W_2m: group = 3; break;
+                            }
+                            break;
+                        case W_2p: group = 4; break;
+                        case W_2m: group = 5; break;
+                    }
+                    assert(W[2] == W_4);
+                } else if (k == 2) {
+                    switch (W[0]) {
+                        case W_4:  group = 6; break;
+                        case W_10: group = 7; break;
+                        case W_1m: group = 8; break;
+                        case W_2m: group = 9; break;
+                    }
+                }
+                assert(group >= 0);
+
+                // save results
+                role[mat[p[0]][p[1]].int_repr] = role_a;
+                assign_group[mat[p[0]][p[1]].int_repr] = group;
+                role[mat[p[1]][p[0]].int_repr] = role_a;
+                assign_group[mat[p[1]][p[0]].int_repr] = group;
+                role[mat[p[1]][p[1]].int_repr] = role_b2;
+                assign_group[mat[p[1]][p[1]].int_repr] = group;
+                if (k == 3) {
+                    role[mat[p[0]][p[2]].int_repr] = role_b;
+                    assign_group[mat[p[0]][p[2]].int_repr] = group;
+                    role[mat[p[2]][p[0]].int_repr] = role_b;
+                    assign_group[mat[p[2]][p[0]].int_repr] = group;
+                    role[mat[p[1]][p[2]].int_repr] = role_c;
+                    assign_group[mat[p[1]][p[2]].int_repr] = group;
+                    role[mat[p[2]][p[1]].int_repr] = role_c;
+                    assign_group[mat[p[2]][p[1]].int_repr] = group;
+                    role[mat[p[0]][p[0]].int_repr] = role_b1;
+                    assign_group[mat[p[0]][p[0]].int_repr] = group;
                 }
             }
         }
     }
 }
 
-void init_vertices() {
+void mc :: init_vertices() {
     v_type.resize(256);
     op_type.resize(256);
     vertex vtx;
