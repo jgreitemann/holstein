@@ -9,6 +9,7 @@
 #define LEFT_BOND(s) ((s+L-1)%L+1)
 #define RIGHT_BOND(s) (s+1)
 #define N_WORM 3                // number of worm types
+#define N_GROUP 10              // number of assignment groups
 
 #include <iostream>
 #include <vector>
@@ -30,6 +31,24 @@ enum el_state {
     dublon
 };
 
+inline byte number_of_electrons (el_state s) {
+    return (s & 1) + (s >> 1);
+}
+
+inline signed char local_magnetization (el_state s) {
+    return (s & 1) - (s >> 1);
+}
+
+enum worm_type {
+    up_worm,
+    down_worm,
+    dublon_worm
+};
+
+inline el_state flipped_state (el_state to_flip, worm_type what) {
+    return static_cast<el_state>(to_flip ^ (what+1));
+}
+
 enum leg {
     bottom_left,
     bottom_right,
@@ -37,11 +56,9 @@ enum leg {
     top_left
 };
 
-enum worm_type {
-    up_worm,
-    down_worm,
-    dublon_worm
-};
+inline leg straight(leg l) {
+    return static_cast<leg>(l ^ 3);
+}
 
 enum operator_type {
     electron_diag,
@@ -51,12 +68,33 @@ enum operator_type {
     creator_right,
     annihilator_left,
     annihilator_right,
-    phonon_diag
+    phonon_diag,
+    disallowed
+};
+
+enum vtx_type {
+    W_1m,
+    W_10,
+    W_1p,
+    W_2m,
+    W_2p,
+    W_3,
+    W_4,
+    W_invalid
+};
+
+enum assignment_role {
+    role_b1,
+    role_b2,
+    role_a,
+    role_b,
+    role_c,
+    no_role
 };
 
 struct bond_operator {
-    operator_type type  : 3;
-    unsigned short bond : 13;
+    operator_type type  : 4;
+    unsigned short bond : 12;
     inline bool operator== (const bond_operator& other) {
         return bond == other.bond && type == other.type;
     }
@@ -75,8 +113,48 @@ union vertex {
         el_state top_left     : 2;
     };
     byte int_repr;
+    bool operator== (const vertex& other) {
+        return int_repr == other.int_repr;
+    }
     el_state get_state(leg l) {
         return static_cast<el_state>(int_repr>>(2*l) & 3);
+    }
+    vtx_type type() {
+        int n_left = number_of_electrons(bottom_left);
+        int n_right = number_of_electrons(bottom_right);
+        switch (op_type()) {
+            case electron_diag:
+                switch (n_left + n_right) {
+                    case 0: return W_1p;
+                    case 1: return W_2p;
+                    case 2:
+                        if (n_left == 1 && n_right == 1)
+                            return W_3;
+                        else
+                            return W_10;
+                    case 3: return W_2m;
+                    case 4: return W_1m;
+                }
+                break;
+            case up_hopping:
+            case down_hopping:
+                return W_4;
+        }
+        return W_invalid;
+    }
+    operator_type op_type() {
+        bool down_diag =    ((bottom_left  & down) == (top_left  & down))
+                         && ((bottom_right & down) == (top_right & down));
+        bool up_diag =    ((bottom_left  & up) == (top_left  & up))
+                       && ((bottom_right & up) == (top_right & up));
+        bool down_hop =    ((bottom_left  & down) == (top_right & down))
+                        && ((bottom_right & down) == (top_left  & down));
+        bool up_hop =    ((bottom_left  & up) == (top_right & up))
+                      && ((bottom_right & up) == (top_left  & up));
+        if (down_diag && up_diag) return electron_diag;
+        if (down_diag && up_hop)  return up_hopping;
+        if (up_diag && down_hop)  return down_hopping;
+        return disallowed;
     }
 };
 
@@ -88,12 +166,23 @@ union assignment {
         worm_type worm : 4;
     };
     unsigned short int_repr;
+    bool operator== (const assignment& other) {
+        return int_repr == other.int_repr;
+    }
     vertex flipped_vtx() {
         vertex res;
         res.int_repr = vtx.int_repr ^ ((worm+1) << (2*ent_leg))
                                     ^ ((worm+1) << (2*exit_leg));
         return res;
-    };
+    }
+    assignment flipped_assign() {
+        assignment flipped;
+        flipped.vtx = flipped_vtx();
+        flipped.ent_leg = exit_leg;
+        flipped.exit_leg = ent_leg;
+        flipped.worm = worm;
+        return flipped;
+    }
 };
 
 struct subseq_node {
@@ -150,6 +239,7 @@ private:
     double mu;
     double omega;
     double g;
+    double delta;
     double epsilon;
     double q_S, q_chi;
     uint therm, total_therm;
@@ -164,7 +254,6 @@ private:
     uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
-    vector<operator_type> vtx_type;
     vector<double> prob;
     double avg_worm_len;
     uint worm_len_sample_size;
@@ -174,6 +263,12 @@ private:
     int mu_adjust_therm;
     int mu_adjust_sweep;
     int mu_index;
+
+    // vertex/assignment classification
+    vector<assignment_role> role;
+    vector<int> assign_group;
+    vector<vtx_type> v_type;
+    vector<operator_type> op_type;
 
     // workspace variables
     vector<vector<subseq_node> > subseq;
@@ -208,6 +303,8 @@ private:
     }
 
     void recalc_directed_loop_probs();
+    void init_assignments();
+    void init_vertices();
 
 public:    
     parser param;
