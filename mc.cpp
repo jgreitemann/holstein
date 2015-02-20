@@ -32,6 +32,7 @@ mc :: mc (string dir) {
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
     T = param.value_or_default<double>("T", .05);
+    epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
     a = param.value_or_default<double>("A", 1.3);
@@ -111,97 +112,80 @@ void mc :: recalc_directed_loop_probs() {
     for (uint i = 0; i < 7; ++i) {
         assert(W[i] >= -1e-14
                || ((cerr << "W[" << i << "]=" << W[i] << endl) && false));
-        if (W[i] < 0)
+        if (abs(W[i]) < 1e-14)
             W[i] = 0.;
     }
 
     // calculate loop segment weights
-    double a[][6] = {
-                        {0, 0, 0, 0, 0, 0}, // b_1
-                        {0, 0, 0, 0, 0, 0}, // b_2
-                        { // a
-                            0.5 * (W[2] + W[4] - W[6]),
-                            0.5 * (W[0] + W[3] - W[6]),
-                            0.5 * (W[1] + W[4] - W[6]),
-                            0.5 * (W[1] + W[3] - W[6]),
-                            0.5 * (W[4] + W[5] - W[6]),
-                            0.5 * (W[3] + W[5] - W[6])
-                        },
-                        { // b
-                            0.5 * (W[2] - W[4] + W[6]),
-                            0.5 * (W[0] - W[3] + W[6]),
-                            0.5 * (W[1] - W[4] + W[6]),
-                            0.5 * (W[1] - W[3] + W[6]),
-                            0.5 * (W[4] - W[5] + W[6]),
-                            0.5 * (W[3] - W[5] + W[6])
-                        },
-                        { // c
-                            0.5 * (-W[2] + W[4] + W[6]),
-                            0.5 * (-W[0] + W[3] + W[6]),
-                            0.5 * (-W[1] + W[4] + W[6]),
-                            0.5 * (-W[1] + W[3] + W[6]),
-                            0.5 * (-W[4] + W[5] + W[6]),
-                            0.5 * (-W[3] + W[5] + W[6])
-                        }
-                    };
-    for (uint i = 0; i < 6; ++i) {
-        a[1][i] = (a[3][i] < 0) ? -2*a[3][i] : 0;
-        a[0][i] = (a[4][i] < 0) ? -2*a[4][i] : 0;
-        a[3][i] += -a[0][i]/2 + a[1][i]/2;
-        a[4][i] += a[0][i]/2 - a[1][i]/2;
-        a[2][i] -= a[0][i]/2 + a[1][i]/2;
-    }
-
-    // determine epsilon
-    epsilon = param.value_or_default<double>("EPSILON", -1.);
-    double epsilon_min = 0.0;
-    for (uint i = 0; i < 6; ++i) {
-        if (a[2][i] < -epsilon_min) {
-            epsilon_min = -a[2][i];
+    vtx_type groups[N_GROUP][3] = {
+                                    {W_1p, W_2p, W_4},      // 0
+                                    {W_1m, W_2m, W_4},      // 1
+                                    {W_10, W_2p, W_4},      // 2
+                                    {W_10, W_2m, W_4},      // 3
+                                    {W_2p, W_3,  W_4},      // 4
+                                    {W_2m, W_3,  W_4},      // 5
+                                    {W_4,  W_4,  W_invalid},// 6
+                                    {W_10, W_1p, W_invalid},// 7
+                                    {W_1m, W_10, W_invalid},// 8
+                                    {W_2m, W_2p, W_invalid} // 9
+                                  };
+    double a[no_role][N_GROUP];
+    for (uint gr = 0; gr < 10; ++gr) {
+        if (groups[gr][2] == W_invalid) {   // 2x2 group
+            bool bigger = W[groups[gr][0]] < W[groups[gr][1]];
+            a[role_a][gr] = W[groups[gr][!bigger]];
+            a[role_b1][gr] = (!bigger) ? (W[groups[gr][bigger]]
+                                          - W[groups[gr][!bigger]]) : 0.;
+            a[role_b2][gr] = (bigger)  ? (W[groups[gr][bigger]]
+                                          - W[groups[gr][!bigger]]) : 0.;
+        } else {                            // 3x3 group
+            a[role_a][gr] = 0.5 * (  W[groups[gr][0]]
+                                   + W[groups[gr][1]]
+                                   - W[groups[gr][2]]);
+            a[role_b][gr] = 0.5 * (  W[groups[gr][0]]
+                                   - W[groups[gr][1]]
+                                   + W[groups[gr][2]]);
+            a[role_c][gr] = 0.5 * ( -W[groups[gr][0]]
+                                   + W[groups[gr][1]]
+                                   + W[groups[gr][2]]);
+            a[role_b1][gr] = (a[role_c][gr] < 0) ? -2.*a[role_c][gr] : 0.0;
+            a[role_b2][gr] = (a[role_b][gr] < 0) ? -2.*a[role_b][gr] : 0.0;
+            a[role_a][gr] += 0.5 * (-a[role_b1][gr] - a[role_b2][gr]);
+            a[role_b][gr] += 0.5 * (-a[role_b1][gr] + a[role_b2][gr]);
+            a[role_c][gr] += 0.5 * ( a[role_b1][gr] - a[role_b2][gr]);
         }
     }
-    if (epsilon < 0) {
-        epsilon = epsilon_min;
-    } else {
-        assert(epsilon >= epsilon_min);
+
+    // determine delta
+    delta = 0.0;
+    for (uint gr = 0; gr < N_GROUP; ++gr) {
+        if (W[groups[gr][2]] != W_invalid && a[role_a][gr] < -delta) {
+            delta = -a[role_a][gr];
+        }
+    }
+    for (uint gr = 0; gr < N_GROUP; ++gr) {
+        if (W[groups[gr][2]] != W_invalid) {
+            a[role_a][gr] += delta + epsilon;
+        }
     }
     for (uint i = 0; i < 6; ++i) {
-        a[2][i] += epsilon;
+        W[i] += delta + epsilon;
     }
 
-    // parse vertex weights
-    int vtx, j, i;
-    for (uint i = 0; i < 6; ++i) {
-        W[i] += epsilon;
-    }
-    ifstream file1("../vertex_types.txt");
-    if (!file1.is_open()) {
-        cerr << "Could not open file vertex_types.txt" << endl;
-        exit(1);
-    }
-    while (file1 >> vtx >> j >> i) {
-        weight[vtx] = W[i-1];
-    }
-    file1.close();
+    // assign vertex weights
+    for (int vtx_i = 0; vtx_i < 256; ++vtx_i)
+        if (v_type[vtx_i] != W_invalid)
+            weight[vtx_i] = W[v_type[vtx_i]];
 
     // calculate transition probabilities
-    ifstream file2("../assignments.txt");
-    if (!file2.is_open()) {
-        cerr << "Could not open file assignments.txt" << endl;
-        exit(1);
-    }
     assignment assign;
-    while (file2 >> assign.int_repr >> i >> j) {
-        if (assign.worm >= N_WORM) {
+    for (int assign_i = 0; assign_i < (N_WORM << 12); ++assign_i) {
+        if (role[assign_i] == no_role)
             continue;
-        }
-        if (i >= 6 || weight[assign.vtx.int_repr] == 0.) {    // 2x2 group
-            prob[assign.int_repr] = 1.;
-        } else {
-            prob[assign.int_repr] = a[j][i] / weight[assign.vtx.int_repr];
-        }
+        assign.int_repr = assign_i;
+        prob[assign_i] = a[role[assign_i]][assign_group[assign_i]]
+                         / weight[assign.vtx.int_repr];
     }
-    file2.close();
 
     // cumulate transition probabilities
     assignment assign2;
@@ -734,7 +718,7 @@ void mc :: do_measurement() {
         return;
 
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
-    double energy = -T * n + NB*(C+epsilon) + L*omega*Np;
+    double energy = -T * n + NB*(C+delta+epsilon) + L*omega*Np;
 
     // add data to measurement
     measure.add("Energy", energy);
@@ -982,7 +966,8 @@ void mc :: write_output(string dir) {
     measure.get_statistics(f);
     f << "SIMULATION PROPERTIES" << endl;
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
-    f << "C+epsilon = " << C+epsilon << endl;
+    f << "C+delta+epsilon = " << C << " + " << delta << " + "
+      << epsilon << " = " << C+delta+epsilon << endl;
     f << "operator string max. length: " << M << endl;
     f << "average worm length: " << avg_worm_len << endl;
     f << "number of loops per MCS: " << N_loop << endl;
@@ -1091,6 +1076,8 @@ void mc :: init_assignments() {
                 assign_group[mat[p[0]][p[1]].int_repr] = group;
                 role[mat[p[1]][p[0]].int_repr] = role_a;
                 assign_group[mat[p[1]][p[0]].int_repr] = group;
+                role[mat[p[0]][p[0]].int_repr] = role_b1;
+                assign_group[mat[p[0]][p[0]].int_repr] = group;
                 role[mat[p[1]][p[1]].int_repr] = role_b2;
                 assign_group[mat[p[1]][p[1]].int_repr] = group;
                 if (k == 3) {
@@ -1102,8 +1089,6 @@ void mc :: init_assignments() {
                     assign_group[mat[p[1]][p[2]].int_repr] = group;
                     role[mat[p[2]][p[1]].int_repr] = role_c;
                     assign_group[mat[p[2]][p[1]].int_repr] = group;
-                    role[mat[p[0]][p[0]].int_repr] = role_b1;
-                    assign_group[mat[p[0]][p[0]].int_repr] = group;
                 }
             }
         }
@@ -1114,7 +1099,7 @@ void mc :: init_vertices() {
     v_type.resize(256);
     op_type.resize(256);
     vertex vtx;
-    for (int vtx_i = 0; vtx_i <= 256; ++vtx_i) {
+    for (int vtx_i = 0; vtx_i < 256; ++vtx_i) {
         vtx.int_repr = vtx_i;
         v_type[vtx_i] = vtx.type();
         if (v_type[vtx_i] != W_invalid) {

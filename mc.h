@@ -9,6 +9,7 @@
 #define LEFT_BOND(s) ((s+L-1)%L+1)
 #define RIGHT_BOND(s) (s+1)
 #define N_WORM 3                // number of worm types
+#define N_GROUP 10              // number of assignment groups
 
 #include <iostream>
 #include <vector>
@@ -72,14 +73,14 @@ enum operator_type {
 };
 
 enum vtx_type {
-    W_invalid,
     W_1m,
     W_10,
     W_1p,
     W_2m,
     W_2p,
     W_3,
-    W_4
+    W_4,
+    W_invalid
 };
 
 enum assignment_role {
@@ -138,14 +139,14 @@ union vertex {
         return W_invalid;
     }
     operator_type op_type() {
-        bool down_diag =    ((bottom_left  | down) == (top_left  | down))
-                         && ((bottom_right | down) == (top_right | down));
-        bool up_diag =    ((bottom_left  | up) == (top_left  | up))
-                       && ((bottom_right | up) == (top_right | up));
-        bool down_hop =    ((bottom_left  | down) == (top_right | down))
-                        && ((bottom_right | down) == (top_left  | down));
-        bool up_hop =    ((bottom_left  | up) == (top_right | up))
-                      && ((bottom_right | up) == (top_left  | up));
+        bool down_diag =    ((bottom_left  & down) == (top_left  & down))
+                         && ((bottom_right & down) == (top_right & down));
+        bool up_diag =    ((bottom_left  & up) == (top_left  & up))
+                       && ((bottom_right & up) == (top_right & up));
+        bool down_hop =    ((bottom_left  & down) == (top_right & down))
+                        && ((bottom_right & down) == (top_left  & down));
+        bool up_hop =    ((bottom_left  & up) == (top_right & up))
+                      && ((bottom_right & up) == (top_left  & up));
         if (down_diag && up_diag) return electron_diag;
         if (down_diag && up_hop)  return up_hopping;
         if (up_diag && down_hop)  return down_hopping;
@@ -232,6 +233,7 @@ private:
     double mu;
     double omega;
     double g;
+    double delta;
     double epsilon;
     double q_S, q_chi;
     uint therm, total_therm;
