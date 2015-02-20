@@ -1154,7 +1154,7 @@ void mc :: init_assignments() {
                         break;
                     }
                 } else if (k == 2) {
-                    W[3] = W_invalid;
+                    W[2] = W_invalid;
                 } else {
                     cerr << "Found an assignment group of size " << k << "!"
                          << endl;
