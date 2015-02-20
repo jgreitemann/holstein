@@ -50,7 +50,8 @@ mc :: mc (string dir) {
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
 
     if (mu_adjust) {
-        total_therm = 2*therm+2*mu_adjust_N*mu_adjust_sweep + (2*mu_adjust_N-2)*mu_adjust_therm;
+        total_therm = 2*therm + 2*mu_adjust_N*mu_adjust_sweep
+                      + (2*mu_adjust_N-2) * mu_adjust_therm;
     } else {
         total_therm = therm;
     }
@@ -252,33 +253,41 @@ mc :: ~mc() {
 void mc :: do_update() {
     // switch mu value as necessary
     if (sweep < total_therm && mu_adjust) {
-        if (sweep == therm + ((mu_index<0) ? 1 : 2)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)) {
-            if (sweep == total_therm-therm) {
+        int nextstop = therm                           // initial thermalization
+            + ((mu_index<0) ? 1 : 2) * mu_adjust_sweep // reversal-point sweep
+            + (mu_index+mu_adjust_N-1) * (mu_adjust_sweep+mu_adjust_therm);
+        if (sweep == nextstop) {
+            if (sweep == total_therm-therm) { // final stop, determine mu
                 for (uint k = 0; k < mu_adjust_N; ++k) {
                     N_mus[k] = N_mus[k]/2/mu_adjust_sweep - (N_el_up+N_el_down);
                 }
                 double m, b, c00, c01, c11, sumsq;
-                gsl_fit_linear(&mus[0], 1, &N_mus[0], 1, mu_adjust_N, &b, &m, &c00, &c01, &c11, &sumsq);
+                gsl_fit_linear(&mus[0], 1, &N_mus[0], 1, mu_adjust_N,
+                               &b, &m, &c00, &c01, &c11, &sumsq);
                 mu = -b / m;
 
                 // save results to database
                 stringstream fname;
-                fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega << ".mu";
+                fname << "../mus/" << setprecision(4) << U << "_" << g << "_"
+                      << omega << ".mu";
                 ofstream fstr(fname.str().c_str());
                 if (fstr.is_open()) {
-                    fstr << mu << " " << U << " " << g << " " << omega << endl;
-                    fstr << "# (above) mu_best U g omega" << endl << endl << endl;
-                    fstr << "# (below) mu DeltaN" << endl;
+                    fstr << mu << " " << U << " " << g << " " << omega << endl
+                         << "# (above) mu_best U g omega" << endl
+                         << endl << endl
+                         << "# (below) mu DeltaN" << endl;
                     for (uint i = 0; i < mu_adjust_N; ++i) {
                         fstr << mus[i] << " " << N_mus[i] << endl;
                     }
-                    fstr << "# L = " << L << endl;
-                    fstr << "# T = " << T << endl;
-                    fstr << "# mu_adjust_therm = " << mu_adjust_therm << endl;
-                    fstr << "# mu_adjust_sweep = " << mu_adjust_sweep << endl;
-                    fstr << "# linear model: f(x) = " << m << "*x+" << b << endl;
+                    fstr << "# L = " << L << endl
+                         << "# T = " << T << endl
+                         << "# mu_adjust_therm = " << mu_adjust_therm << endl
+                         << "# mu_adjust_sweep = " << mu_adjust_sweep << endl
+                         << "# linear model: f(x) = " << m << " * x + "
+                         << b << endl;
                 } else {
-                    cerr << "Warning: could not write results from mu adjustment to file " << fname.str() << endl;
+                    cerr << "Warning: could not write results from mu"
+                            "adjustment to file " << fname.str() << endl;
                 }
 
                 recalc_directed_loop_probs();
@@ -295,7 +304,8 @@ void mc :: do_update() {
     }
 
     // diagonal update & subsequence construction
-    for_each(subseq.begin(), subseq.end(), mem_fun_ref(&vector<subseq_node>::clear));
+    for_each(subseq.begin(), subseq.end(),
+             mem_fun_ref(&vector<subseq_node>::clear));
     fill(initial_Nd.begin(), initial_Nd.end(), 0);
     current_state = state;
     current_occ = occ;
@@ -339,48 +349,74 @@ void mc :: do_update() {
         bond_operator b = sm[i];
         if (b != identity) {
             // append to the phonon subsequences
-            if (b.type == phonon_diag) {
-                if (subseq[LEFT_SITE(b.bond)].empty()) {
-                    ++initial_Nd[LEFT_SITE(b.bond)];
-                } else {
-                    ++(subseq[LEFT_SITE(b.bond)].back().Nd);
-                }
-            } else if (b.type != up_hopping && b.type != down_hopping) {
-                unsigned short site;
-                if (b.type == electron_diag) {
-                    site = random0N(2) ? LEFT_SITE(b.bond) : RIGHT_SITE(b.bond);
-                } else if (b.type == creator_left || b.type == creator_right) {
-                    site = (b.type == creator_left) ? LEFT_SITE(b.bond)
-                                                    : RIGHT_SITE(b.bond);
-                } else if (b.type == annihilator_left || b.type == annihilator_right) {
-                    site = (b.type == annihilator_left) ? LEFT_SITE(b.bond)
-                                                        : RIGHT_SITE(b.bond);
-                }
-                vertex vtx = diag_vertex_at_bond(current_state, b.bond);
-                byte n_el = number_of_electrons(current_state[site]);
-                subseq_node newNode;
-                newNode.i = i;
-                newNode.Nd = 0;
-                newNode.m = current_occ[site];
-                newNode.r = weight[vtx.int_repr]/n_el;
-                subseq[site].push_back(newNode);
+            switch (b.type) {
+                case phonon_diag:
+                    if (subseq[LEFT_SITE(b.bond)].empty()) {
+                        ++initial_Nd[LEFT_SITE(b.bond)];
+                    } else {
+                        ++(subseq[LEFT_SITE(b.bond)].back().Nd);
+                    }
+                    break;
+                case up_hopping:
+                case down_hopping:
+                    break;
+                default:
+                    unsigned short site;
+                    switch (b.type) {
+                        case electron_diag:
+                            site = random0N(2) ? LEFT_SITE(b.bond)
+                                               : RIGHT_SITE(b.bond);
+                            break;
+                        case creator_left:
+                        case annihilator_left:
+                            site = LEFT_SITE(b.bond);
+                            break;
+                        case creator_right:
+                        case annihilator_right:
+                            site = RIGHT_SITE(b.bond);
+                            break;
+                    }
+                    vertex vtx = diag_vertex_at_bond(current_state, b.bond);
+                    byte n_el = number_of_electrons(current_state[site]);
+                    subseq_node newNode;
+                    newNode.i = i;
+                    newNode.Nd = 0;
+                    newNode.m = current_occ[site];
+                    newNode.r = weight[vtx.int_repr]/n_el;
+                    subseq[site].push_back(newNode);
+                    break;
             }
 
             // propagation of state
-            if (b.type == up_hopping) {
-                current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
-                current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
-            } else if (b.type == down_hopping) {
-                current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
-                current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
-            } else if (b.type == creator_left) {
-                current_occ[LEFT_SITE(b.bond)]++;
-            } else if (b.type == creator_right) {
-                current_occ[RIGHT_SITE(b.bond)]++;
-            } else if (b.type == annihilator_left) {
-                current_occ[LEFT_SITE(b.bond)]--;
-            } else if (b.type == annihilator_right) {
-                current_occ[RIGHT_SITE(b.bond)]--;
+            switch (b.type) {
+                case up_hopping:
+                    current_state[LEFT_SITE(b.bond)] =
+                        flipped_state(current_state[LEFT_SITE(b.bond)],
+                                      up_worm);
+                    current_state[RIGHT_SITE(b.bond)] =
+                        flipped_state(current_state[RIGHT_SITE(b.bond)],
+                                      up_worm);
+                    break;
+                case down_hopping:
+                    current_state[LEFT_SITE(b.bond)] =
+                        flipped_state(current_state[LEFT_SITE(b.bond)],
+                                      down_worm);
+                    current_state[RIGHT_SITE(b.bond)] =
+                        flipped_state(current_state[RIGHT_SITE(b.bond)],
+                                      down_worm);
+                    break;
+                case creator_left:
+                    current_occ[LEFT_SITE(b.bond)]++;
+                    break;
+                case creator_right:
+                    current_occ[RIGHT_SITE(b.bond)]++;
+                    break;
+                case annihilator_left:
+                    current_occ[LEFT_SITE(b.bond)]--;
+                    break;
+                case annihilator_right:
+                    current_occ[RIGHT_SITE(b.bond)]--;
+                    break;
             }
         }
     }
@@ -405,7 +441,8 @@ void mc :: do_update() {
             if (i2 == subseq[s].end()) {
                 i2 = subseq[s].begin();
             }
-            if (sm[i1->i].type == electron_diag && sm[i2->i].type == electron_diag) {
+            if (   sm[i1->i].type == electron_diag
+                && sm[i2->i].type == electron_diag) {
                 if (random0N(2)) { // (H_1, H_1) -> (H_5, H_4)
                     double prob = g*g * i1->m / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m), i1->Nd);
@@ -449,8 +486,10 @@ void mc :: do_update() {
                         ++(i2->m);
                     }
                 }
-            } else if ((sm[i1->i].type == creator_left || sm[i1->i].type == creator_right)
-                    && (sm[i2->i].type == annihilator_left || sm[i2->i].type == annihilator_right)) {
+            } else if (   (   sm[i1->i].type == creator_left
+                           || sm[i1->i].type == creator_right)
+                       && (   sm[i2->i].type == annihilator_left
+                           || sm[i2->i].type == annihilator_right)) {
                 if (random0N(2)) { // (H_4, H_5) -> (H_5, H_4)
                     double prob = 1. * (i1->m) / (i1->m+1)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m-1), i1->Nd);
@@ -481,8 +520,10 @@ void mc :: do_update() {
                         --(i2->m);
                     }
                 }
-            } else if ((sm[i1->i].type == annihilator_left || sm[i1->i].type == annihilator_right)
-                    && (sm[i2->i].type == creator_left || sm[i2->i].type == creator_right)) {
+            } else if (   (   sm[i1->i].type == annihilator_left
+                           || sm[i1->i].type == annihilator_right)
+                       && (   sm[i2->i].type == creator_left
+                           || sm[i2->i].type == creator_right)) {
                 if (random0N(2)) { // (H_5, H_4) -> (H_4, H_5)
                     double prob = 1. / (i1->m) * (i1->m+1)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m+1), i1->Nd);
@@ -551,41 +592,65 @@ void mc :: do_update() {
                 first[LEFT_SITE(sm[i].bond)] = list_position(bottom_left, p);
                 last[LEFT_SITE(sm[i].bond)] = list_position(top_left, p);
             } else {
-                link[list_position(bottom_left, p).int_repr] = last[LEFT_SITE(sm[i].bond)];
-                link[last[LEFT_SITE(sm[i].bond)].int_repr] = list_position(bottom_left, p);
+                link[list_position(bottom_left, p).int_repr] =
+                    last[LEFT_SITE(sm[i].bond)];
+                link[last[LEFT_SITE(sm[i].bond)].int_repr] =
+                    list_position(bottom_left, p);
                 last[LEFT_SITE(sm[i].bond)] = list_position(top_left, p);
             }
             if (first[RIGHT_SITE(sm[i].bond)] == invalid_pos) {
                 first[RIGHT_SITE(sm[i].bond)] = list_position(bottom_right, p);
                 last[RIGHT_SITE(sm[i].bond)] = list_position(top_right, p);
             } else {
-                link[list_position(bottom_right, p).int_repr] = last[RIGHT_SITE(sm[i].bond)];
-                link[last[RIGHT_SITE(sm[i].bond)].int_repr] = list_position(bottom_right, p);
+                link[list_position(bottom_right, p).int_repr] =
+                    last[RIGHT_SITE(sm[i].bond)];
+                link[last[RIGHT_SITE(sm[i].bond)].int_repr] =
+                    list_position(bottom_right, p);
                 last[RIGHT_SITE(sm[i].bond)] = list_position(top_right, p);
             }
 
             // determine vertex type
             vtx[p].bottom_left = current_state[LEFT_SITE(sm[i].bond)];
             vtx[p].bottom_right = current_state[RIGHT_SITE(sm[i].bond)];
-            if (sm[i].type == up_hopping) {
-                current_state[LEFT_SITE(sm[i].bond)] = flipped_state(current_state[LEFT_SITE(sm[i].bond)], up_worm);
-                current_state[RIGHT_SITE(sm[i].bond)] = flipped_state(current_state[RIGHT_SITE(sm[i].bond)], up_worm);
-            } else if (sm[i].type == down_hopping) {
-                current_state[LEFT_SITE(sm[i].bond)] = flipped_state(current_state[LEFT_SITE(sm[i].bond)], down_worm);
-                current_state[RIGHT_SITE(sm[i].bond)] = flipped_state(current_state[RIGHT_SITE(sm[i].bond)], down_worm);
+            switch (sm[i].type) {
+                case up_hopping:
+                    current_state[LEFT_SITE(sm[i].bond)] =
+                        flipped_state(current_state[LEFT_SITE(sm[i].bond)],
+                                      up_worm);
+                    current_state[RIGHT_SITE(sm[i].bond)] =
+                        flipped_state(current_state[RIGHT_SITE(sm[i].bond)],
+                                      up_worm);
+                    lock[p] = unlocked;
+                    break;
+                case down_hopping:
+                    current_state[LEFT_SITE(sm[i].bond)] =
+                        flipped_state(current_state[LEFT_SITE(sm[i].bond)],
+                                      down_worm);
+                    current_state[RIGHT_SITE(sm[i].bond)] =
+                        flipped_state(current_state[RIGHT_SITE(sm[i].bond)],
+                                      down_worm);
+                    lock[p] = unlocked;
+                    break;
+                case creator_left:
+                case annihilator_left:
+                    lock[p] = left_lock; // require at least one electron on
+                                         // left site
+                    break;
+                case creator_right:
+                case annihilator_right:
+                    lock[p] = right_lock; // require at least one electron on
+                                          // right site
+                    break;
+                case phonon_diag:
+                    lock[p] = total_lock; // require at least one electron on
+                                          // both sites
+                    break;
+                default:
+                    lock[p] = unlocked;
+                    break;
             }
             vtx[p].top_right = current_state[RIGHT_SITE(sm[i].bond)];
             vtx[p].top_left = current_state[LEFT_SITE(sm[i].bond)];
-
-            if (sm[i].type == creator_left || sm[i].type == annihilator_left) {
-                lock[p] = left_lock; // require at least one electron on left site
-            } else if (sm[i].type == creator_right || sm[i].type == annihilator_right) {
-                lock[p] = right_lock; // require at least one electron on right site
-            } else if (sm[i].type == phonon_diag) {
-                lock[p] = total_lock;
-            } else {
-                lock[p] = unlocked;
-            }
 
             ++p;
         }
@@ -627,36 +692,51 @@ void mc :: do_update() {
                 assign.vtx = vtx[j.index];
                 assign.ent_leg = j.vtx_leg;
                 assign.worm = worm;
-                if (lock[j.index] == total_lock) {
-                    assign.exit_leg = straight(j.vtx_leg); // continue straight
-                } else if (lock[j.index] != unlocked) {
-                    if ((lock[j.index] == left_lock && (j.vtx_leg == bottom_left || j.vtx_leg == top_left))
-                        || (lock[j.index] == right_lock && (j.vtx_leg == bottom_right || j.vtx_leg == top_right))) {
-                        if (flipped_state(vtx[j.index].get_state(j.vtx_leg), worm) == empty) {
-                            assign.exit_leg = j.vtx_leg; // bounce
-                        } else {
-                            if (vtx[j.index].get_state(j.vtx_leg) == dublon) {
-                                if (random0N(2)) {
-                                    assign.exit_leg = straight(j.vtx_leg); // continue straight
-                                } else {
-                                    assign.exit_leg = j.vtx_leg; // bounce
-                                }
+                switch (lock[j.index]) {
+                    case total_lock: // continue straight
+                        assign.exit_leg = straight(j.vtx_leg);
+                        break;
+                    case left_lock:
+                    case right_lock:
+                        if (   (   lock[j.index] == left_lock
+                                && (   j.vtx_leg == bottom_left
+                                    || j.vtx_leg == top_left))
+                            || (   lock[j.index] == right_lock
+                                && (   j.vtx_leg == bottom_right
+                                    || j.vtx_leg == top_right))) {
+                            if (flipped_state(vtx[j.index].get_state(j.vtx_leg),
+                                              worm) == empty) {
+                                assign.exit_leg = j.vtx_leg; // bounce
                             } else {
-                                assign.exit_leg = straight(j.vtx_leg); // continue straight
+                                if (vtx[j.index].get_state(j.vtx_leg)==dublon) {
+                                    if (random0N(2)) {
+                                         // continue straight
+                                         assign.exit_leg = straight(j.vtx_leg);
+                                    } else {
+                                        assign.exit_leg = j.vtx_leg; // bounce
+                                    }
+                                } else {
+                                    // continue straight
+                                    assign.exit_leg = straight(j.vtx_leg);
+                                }
                             }
+                        } else {
+                            // continue straight
+                            assign.exit_leg = straight(j.vtx_leg);
                         }
-                    } else {
-                        assign.exit_leg = straight(j.vtx_leg); // continue straight
-                    }
-                } else {
-                    r = random01();
-                    byte exit_leg_i;
-                    for (exit_leg_i = bottom_left; exit_leg_i <= top_left; ++exit_leg_i) {
-                        assign.exit_leg = static_cast<leg>(exit_leg_i);
-                        if (r < prob[assign.int_repr])
-                            break;
-                    }
-                    assert(exit_leg_i < 4); // assert that break was called
+                        break;
+                    case unlocked:
+                        r = random01();
+                        byte exit_leg_i;
+                        for (exit_leg_i = bottom_left;
+                                exit_leg_i <= top_left;
+                                ++exit_leg_i) {
+                            assign.exit_leg = static_cast<leg>(exit_leg_i);
+                            if (r < prob[assign.int_repr])
+                                break;
+                        }
+                        assert(exit_leg_i < 4); // assert that break was called
+                        break;
                 }
                 // do not count bounces into the worm length
                 if (assign.ent_leg == assign.exit_leg) {
@@ -664,16 +744,17 @@ void mc :: do_update() {
                 }
                 // flip the vertex:
                 vtx[j.index] = assign.flipped_vtx();
-                j.vtx_leg = assign.exit_leg; // exit leg position in linked list
-                if (j == j0)    // loop closed (SS02, Fig. 4b)
+                j.vtx_leg = assign.exit_leg;// exit leg position in linked list
+                if (j == j0)    // loop closed (c.f. [SS02], Fig. 4b)
                     break;
                 j = link[j.int_repr];
-                if (j == j0)    // loop closed (SS02, Fig. 4a)
+                if (j == j0)    // loop closed (c.f. [SS02], Fig. 4a)
                     break;
             }
             // logging worm length
             if (sweep < therm && sweep >= therm/2) {
-                avg_worm_len *= 1.*worm_len_sample_size / (worm_len_sample_size+1);
+                avg_worm_len *= 1.*worm_len_sample_size
+                                / (worm_len_sample_size+1);
                 avg_worm_len += 1.*k / (++worm_len_sample_size);
             }
         }
@@ -683,8 +764,13 @@ void mc :: do_update() {
         for (uint i = 0; p < n; ++i) {
             if (sm[i] == identity)
                 continue;
-            if (sm[i].type == electron_diag || sm[i].type == up_hopping || sm[i].type == down_hopping)
-                sm[i].type = vtx_type[vtx[p].int_repr];
+            switch (sm[i].type) {
+                case electron_diag:
+                case up_hopping:
+                case down_hopping:
+                    sm[i].type = vtx_type[vtx[p].int_repr];
+                    break;
+            }
             ++p;
         }
 
@@ -704,7 +790,12 @@ void mc :: do_update() {
     }
 
     // log the number of electrons if necessary
-    if (sweep < total_therm && mu_adjust && sweep >= therm + ((mu_index<=0) ? 0 : 1)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm) && sweep < therm + ((mu_index<0) ? 1 : 2)*mu_adjust_sweep + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)) {
+    if (   sweep < total_therm && mu_adjust
+        && sweep >= therm + ((mu_index<=0) ? 0 : 1) * mu_adjust_sweep
+                    + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)
+        && sweep < therm + ((mu_index<0) ? 1 : 2) * mu_adjust_sweep
+                   + (mu_index+mu_adjust_N-1)
+                        * (mu_adjust_sweep+mu_adjust_therm)) {
         for (uint s = 0; s < L; ++s) {
             N_mus[abs(mu_index)] += number_of_electrons(state[s]);
         }
@@ -760,20 +851,31 @@ void mc :: do_measurement() {
 
         bond_operator b = sm[i];
         // propagation of state
-        if (b.type == up_hopping) {
-            current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
-            current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
-        } else if (b.type == down_hopping) {
-            current_state[LEFT_SITE(b.bond)] = flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
-            current_state[RIGHT_SITE(b.bond)] = flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
-        } else if (b.type == creator_left) {
-            current_occ[LEFT_SITE(b.bond)]++;
-        } else if (b.type == creator_right) {
-            current_occ[RIGHT_SITE(b.bond)]++;
-        } else if (b.type == annihilator_left) {
-            current_occ[LEFT_SITE(b.bond)]--;
-        } else if (b.type == annihilator_right) {
-            current_occ[RIGHT_SITE(b.bond)]--;
+        switch (b.type) {
+            case up_hopping:
+                current_state[LEFT_SITE(b.bond)] =
+                    flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
+                current_state[RIGHT_SITE(b.bond)] =
+                    flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+                break;
+            case down_hopping:
+                current_state[LEFT_SITE(b.bond)] =
+                    flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
+                current_state[RIGHT_SITE(b.bond)] =
+                    flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
+                break;
+            case creator_left:
+                current_occ[LEFT_SITE(b.bond)]++;
+                break;
+            case creator_right:
+                current_occ[RIGHT_SITE(b.bond)]++;
+                break;
+            case annihilator_left:
+                current_occ[LEFT_SITE(b.bond)]--;
+                break;
+            case annihilator_right:
+                current_occ[RIGHT_SITE(b.bond)]--;
+                break;
         }
         ++p;
     }
@@ -786,8 +888,11 @@ void mc :: do_measurement() {
         sum_ss[s] += s_s * s_0;
         S_rho_r[s] = 1./(n+1)*sum_nn[s];
         S_sigma_r[s] = 1./(n+1)*sum_ss[s];
-        chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0] + 1./T/(n+1)/(n+1)*sum_nn[s];
-        chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0] + 1./T/(n+1)/(n+1)*sum_ss[s];
+        // cf. [DT01]
+        chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0]
+                       + 1./T/(n+1)/(n+1)*sum_nn[s];
+        chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0]
+                         + 1./T/(n+1)/(n+1)*sum_ss[s];
         mean_m[s] = 1./n*sum_m[s];
         // accumulate ms
         if (s > 0) {
@@ -840,8 +945,9 @@ void mc :: init() {
     occ.resize(L, 0);
     bool place_holes_up = N_el_up > L/2;
     bool place_holes_down = N_el_down > L/2;
-    el_state initial_state = static_cast<el_state>((place_holes_up ? up : empty)
-                                                   | (place_holes_down ? down : empty));
+    el_state initial_state =
+        static_cast<el_state>((place_holes_up ? up : empty)
+                              | (place_holes_down ? down : empty));
     for (uint i = 0; i < L; i++) {
         state[i] = initial_state;
     }
@@ -849,7 +955,8 @@ void mc :: init() {
     uint things_to_place = place_holes_down ? (L-N_el_down) : N_el_down;
     while (things_to_place > 0) {
         int site = random0N(L);
-        if ((static_cast<el_state>(state[site] & down) == down) == place_holes_down) {
+        if ((static_cast<el_state>(state[site] & down) == down)
+                == place_holes_down) {
             state[site] = static_cast<el_state>(state[site] ^ down);
             things_to_place--;
         }
@@ -858,7 +965,8 @@ void mc :: init() {
     things_to_place = place_holes_up ? (L-N_el_up) : N_el_up;
     while (things_to_place > 0) {
         int site = random0N(L);
-        if ((static_cast<el_state>(state[site] & up) == up) == place_holes_up) {
+        if ((static_cast<el_state>(state[site] & up) == up)
+                == place_holes_up) {
             state[site] = static_cast<el_state>(state[site] ^ up);
             things_to_place--;
         }
@@ -875,7 +983,8 @@ void mc :: init() {
 
     // read mu value from database if available
     stringstream fname;
-    fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega << ".mu";
+    fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega
+          << ".mu";
     ifstream fstr(fname.str().c_str());
     if (fstr.is_open()) {
         fstr >> mu;
@@ -888,7 +997,8 @@ void mc :: init() {
 
         // calculate mu values for adjustment
         for (uint i = 0; i < mu_adjust_N; i++) {
-            mus[i] = (mu-mu_adjust_range) + 2*mu_adjust_range/(mu_adjust_N-1)*i;
+            mus[i] = (mu-mu_adjust_range)
+                     + 2*mu_adjust_range/(mu_adjust_N-1)*i;
         }
         mu_index = -(mu_adjust_N-1);
         mu = mus[abs(mu_index)];
@@ -973,11 +1083,11 @@ void mc :: write_output(string dir) {
     f << "PARAMETERS" << endl;
     param.get_all(f);
     measure.get_statistics(f);
-    f << "SIMULATION PROPERTIES" << endl;
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
-    f << "C+epsilon = " << C+epsilon << endl;
-    f << "operator string max. length: " << M << endl;
-    f << "average worm length: " << avg_worm_len << endl;
-    f << "number of loops per MCS: " << N_loop << endl;
-    f << "mu = " << mu << endl;
+    f << "SIMULATION PROPERTIES" << endl
+      << "C+epsilon = " << C+epsilon << endl
+      << "operator string max. length: " << M << endl
+      << "average worm length: " << avg_worm_len << endl
+      << "number of loops per MCS: " << N_loop << endl
+      << "mu = " << mu << endl;
 }
