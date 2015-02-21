@@ -1048,7 +1048,9 @@ void mc :: init() {
         mu_index = -(mu_adjust_N-1);
         mu = mus[abs(mu_index)];
     }
+#ifndef MCL_PT
     recalc_directed_loop_probs();
+#endif
 
     // add observables
 #ifdef MCL_PT
@@ -1140,7 +1142,9 @@ bool mc :: read(string dir) {
         d.read(muvec);
 #endif
         d.close();
+#ifndef MCL_PT
         recalc_directed_loop_probs();
+#endif
         return true;
     }
 }
