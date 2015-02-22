@@ -1375,7 +1375,6 @@ double mc :: get_weight(int f) {
                 break;
         }
     }
-    cout << log_weight << endl;
     return n_phonon * log(gvec[f] / g) + log_weight;
 }
 
