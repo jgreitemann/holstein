@@ -48,19 +48,10 @@ mc :: mc (string dir) {
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 20);
     mu_adjust = param.value_or_default<bool>("MU_ADJUST", 0);
-    mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1);
-    mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 10);
-    mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 5000);
-    mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
+    mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.5);
+    mu_adjust_tol = param.value_or_default<int>("MU_ADJUST_TOLERANCE", 0.01);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
-
-    if (mu_adjust) {
-        total_therm = 2*therm + 2*mu_adjust_N*mu_adjust_sweep
-                      + (2*mu_adjust_N-2) * mu_adjust_therm;
-    } else {
-        total_therm = therm;
-    }
 
     // initialize vectors
     init_vertices();
@@ -289,8 +280,8 @@ void mc :: do_update() {
         }
     }
 
-    // exiting thermalization stage
-    if (sweep == total_therm) {
+    // exiting initial thermalization stage
+    if (therm_state.sweeps == 0 && therm_state.stage == thermalized) {
         N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
@@ -743,7 +734,8 @@ void mc :: do_update() {
                     break;
             }
             // logging worm length
-            if (sweep < therm && sweep >= therm/2) {
+            if (therm_state.stage == initial_stage
+                    && therm_state.sweeps < therm && therm_state.sweeps >= therm/2) {
                 avg_worm_len *= 1.*worm_len_sample_size
                                 / (worm_len_sample_size+1);
                 avg_worm_len += 1.*k / (++worm_len_sample_size);
@@ -781,17 +773,12 @@ void mc :: do_update() {
     }
 
     // log the number of electrons if necessary
-    if (   sweep < total_therm && mu_adjust
-        && sweep >= therm + ((mu_index<=0) ? 0 : 1) * mu_adjust_sweep
-                    + (mu_index+mu_adjust_N-1)*(mu_adjust_sweep+mu_adjust_therm)
-        && sweep < therm + ((mu_index<0) ? 1 : 2) * mu_adjust_sweep
-                   + (mu_index+mu_adjust_N-1)
-                        * (mu_adjust_sweep+mu_adjust_therm)) {
+    if (mu_adjust && therm_state.in_logging_stage() && therm_state.sweeps >= mu_adjust_therm) {
         for (uint s = 0; s < L; ++s) {
-            N_mus[abs(mu_index)] += number_of_electrons(state[s]);
+            N_mu += number_of_electrons(state[s]);
         }
     }
-    ++sweep;
+    ++(therm_state.sweeps);
 }
 
 void mc :: do_measurement() {
@@ -925,7 +912,7 @@ void mc :: do_measurement() {
 
 
 bool mc :: is_thermalized() {
-    return (sweep > total_therm);
+    return therm_state.stage == thermalized;
 }
 
 void mc :: init() {
@@ -964,7 +951,6 @@ void mc :: init() {
     }
 
     n = 0;
-    sweep=0;
     M = (uint)(a * init_n_max);
     dublon_rejected = true;
     avg_worm_len = 0;
@@ -983,16 +969,12 @@ void mc :: init() {
 
     // set up adjustment of mu if desired
     if (mu_adjust) {
-        mus.resize(mu_adjust_N);
-        N_mus.resize(mu_adjust_N, 0);
-
-        // calculate mu values for adjustment
-        for (uint i = 0; i < mu_adjust_N; i++) {
-            mus[i] = (mu-mu_adjust_range)
-                     + 2*mu_adjust_range/(mu_adjust_N-1)*i;
-        }
-        mu_index = -(mu_adjust_N-1);
-        mu = mus[abs(mu_index)];
+        lower_mu = mu - 0.5*mu_adjust_range;
+        upper_mu = mu + 0.5*mu_adjust_range;
+        mu = lower_mu;
+        therm_state.set_stage(initial_stage);
+    } else {
+        therm_stage.set_stage(final_stage);
     }
     recalc_directed_loop_probs();
 
@@ -1015,7 +997,7 @@ void mc :: init() {
 void mc :: write(string dir) {
     odump d(dir + "dump");
     random_write(d);
-    d.write(sweep);
+    d.write(therm_state);
     d.write(state);
     d.write(occ);
     d.write(sm);
@@ -1026,9 +1008,8 @@ void mc :: write(string dir) {
     d.write(N_loop);
     d.write(mu);
     if (mu_adjust) {
-        d.write(mu_index);
-        d.write(mus);
-        d.write(N_mus);
+        d.write(lower_mu);
+        d.write(upper_mu);
     }
     d.close();
     seed_write(dir + "seed");
@@ -1045,7 +1026,7 @@ bool mc :: read(string dir) {
         return false;
     } else {
         random_read(d);
-        d.read(sweep);
+        d.read(therm_state);
         d.read(state);
         d.read(occ);
         d.read(sm);
@@ -1057,9 +1038,8 @@ bool mc :: read(string dir) {
         d.read(N_loop);
         d.read(mu);
         if (mu_adjust) {
-            d.read(mu_index);
-            d.read(mus);
-            d.read(N_mus);
+            d.read(lower_mu);
+            d.read(upper_mu);
         }
         d.close();
         recalc_directed_loop_probs();

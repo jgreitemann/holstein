@@ -92,6 +92,36 @@ enum assignment_role {
     no_role
 };
 
+enum thermalization_stage {
+    initial_stage,
+    lower_stage,
+    upper_stage,
+    convergence_stage,
+    final_stage,
+    thermalized
+};
+
+struct thermalization_state {
+    thermalization_stage stage;
+    int sweeps;
+    void set_stage (thermalization_stage s) {
+        stage = s;
+        sweeps = 0;
+    }
+    bool in_logging_stage () {
+        switch (stage) {
+            case lower_stage:
+            case upper_stage:
+            case convergence_stage:
+                return true;
+            case initial_stage:
+            case final_stage:
+            case thermalized_stage:
+                return false;
+        }
+    } 
+};
+
 struct bond_operator {
     operator_type type  : 4;
     unsigned short bond : 12;
@@ -259,10 +289,8 @@ private:
     uint worm_len_sample_size;
     bool mu_adjust;
     double mu_adjust_range;
-    int mu_adjust_N;
-    int mu_adjust_therm;
-    int mu_adjust_sweep;
-    int mu_index;
+    double mu_adjust_tol;
+    thermalization_state therm_state;
 
     // vertex/assignment classification
     vector<assignment_role> role;
@@ -288,9 +316,8 @@ private:
     vector<double> sin_q_S;
     vector<double> cos_q_chi;
     vector<double> sin_q_chi;
-    vector<double> mus;
-    vector<double> N_mus;
-
+    double lower_mu, upper_mu;
+    double lower_N, upper_N;
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
