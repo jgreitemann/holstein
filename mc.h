@@ -319,6 +319,7 @@ private:
     double lower_mu, upper_mu;
     double lower_N, upper_N;
     int N_mu;
+    stringstream mu_data, bisection_protocol;
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {

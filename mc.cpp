@@ -269,8 +269,7 @@ void mc :: do_update() {
         case convergence_stage:
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 double center_N = 1. * N_mu / mu_adjust_sweep;
-                cout << "mu = " << mu << ", "
-                     << "N = " << center_N << endl;
+                mu_data << mu << " " << center_N << endl;
                 if (center_N < N_el_up+N_el_down) {
                     upper_mu = 0.5 * (lower_mu + upper_mu);
                     upper_N = center_N;
@@ -278,7 +277,7 @@ void mc :: do_update() {
                     lower_mu = 0.5 * (lower_mu + upper_mu);
                     lower_N = center_N;
                 }
-                cout << lower_mu << ".." << upper_mu << endl;
+                bisection_protocol << lower_mu << " " << upper_mu << endl;
                 if (upper_mu - lower_mu > mu_adjust_tol) {
                     therm_state.set_stage(convergence_stage);
                 } else {
@@ -290,8 +289,24 @@ void mc :: do_update() {
             }
             break;
         case final_stage:
-            if (therm_state.sweeps == therm)
+            if (therm_state.sweeps == therm) {
                 therm_state.set_stage(thermalized);
+                stringstream fname;
+                fname << "../mus/" << setprecision(4) << U << "_" << g << "_"
+                      << omega << ".mu";
+                ofstream fstr(fname.str().c_str());
+                if (fstr.is_open()) {
+                    fstr << mu << " " << U << " " << g << " " << omega << endl
+                         << "# (above) mu_best U g omega" << endl
+                         << endl << endl
+                         << "# (below) mu N_mu" << endl
+                         << mu_data.str()
+                         << endl << endl
+                         << "# (below) lower_mu upper_mu" << endl
+                         << bisection_protocol.str();
+                    fstr.close();
+                }
+            }
             break;
         case thermalized:
             break;
@@ -1023,6 +1038,10 @@ void mc :: write(string dir) {
         d.write(lower_mu);
         d.write(upper_mu);
         d.write(N_mu);
+        string mu_data_str(mu_data.str());
+        string bisection_protocol_str(bisection_protocol.str());
+        d.write(mu_data_str);
+        d.write(bisection_protocol_str);
     }
     d.close();
     seed_write(dir + "seed");
@@ -1054,6 +1073,11 @@ bool mc :: read(string dir) {
             d.read(lower_mu);
             d.read(upper_mu);
             d.read(N_mu);
+            string mu_data_str, bisection_protocol_str;
+            d.read(mu_data_str);
+            mu_data << mu_data_str;
+            d.read(bisection_protocol_str);
+            bisection_protocol << bisection_protocol_str;
         }
         d.close();
         recalc_directed_loop_probs();
