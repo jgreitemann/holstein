@@ -250,8 +250,15 @@ void mc :: do_update() {
         case lower_stage:
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 lower_N = 1. * N_mu / mu_adjust_sweep;
-                therm_state.set_stage(upper_stage);
-                mu = upper_mu;
+                mu_data << mu << " " << lower_N << endl;
+                if (lower_N < N_el_up+N_el_down) {
+                    lower_mu = lower_mu - 0.5 * (upper_mu - lower_mu);
+                    therm_state.set_stage(lower_stage);
+                    mu = lower_mu;
+                } else {
+                    therm_state.set_stage(upper_stage);
+                    mu = upper_mu;
+                }
                 recalc_directed_loop_probs();
                 N_mu = 0;
             }
@@ -259,8 +266,15 @@ void mc :: do_update() {
         case upper_stage:
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 upper_N = 1. * N_mu / mu_adjust_sweep;
-                therm_state.set_stage(convergence_stage);
-                mu = 0.5 * (lower_mu + upper_mu);
+                mu_data << mu << " " << upper_N << endl;
+                if (upper_N > N_el_up+N_el_down) {
+                    upper_mu = upper_mu + 0.5 * (upper_mu - lower_mu);
+                    therm_state.set_stage(upper_stage);
+                    mu = upper_mu;
+                } else {
+                    therm_state.set_stage(convergence_stage);
+                    mu = 0.5 * (lower_mu + upper_mu);
+                }
                 recalc_directed_loop_probs();
                 N_mu = 0;
             }
