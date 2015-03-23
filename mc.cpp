@@ -49,7 +49,9 @@ mc :: mc (string dir) {
     Np = param.value_or_default<int>("N_P", 20);
     mu_adjust = param.value_or_default<bool>("MU_ADJUST", 0);
     mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.5);
-    mu_adjust_tol = param.value_or_default<int>("MU_ADJUST_TOLERANCE", 0.01);
+    mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 5000);
+    mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
+    mu_adjust_tol = param.value_or_default<double>("MU_ADJUST_TOLERANCE", 0.01);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
 
@@ -233,56 +235,66 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
-    // switch mu value as necessary
-    if (sweep < total_therm && mu_adjust) {
-        int nextstop = therm                           // initial thermalization
-            + ((mu_index<0) ? 1 : 2) * mu_adjust_sweep // reversal-point sweep
-            + (mu_index+mu_adjust_N-1) * (mu_adjust_sweep+mu_adjust_therm);
-        if (sweep == nextstop) {
-            if (sweep == total_therm-therm) { // final stop, determine mu
-                for (uint k = 0; k < mu_adjust_N; ++k) {
-                    N_mus[k] = N_mus[k]/2/mu_adjust_sweep - (N_el_up+N_el_down);
-                }
-                double m, b, c00, c01, c11, sumsq;
-                gsl_fit_linear(&mus[0], 1, &N_mus[0], 1, mu_adjust_N,
-                               &b, &m, &c00, &c01, &c11, &sumsq);
-                mu = -b / m;
-
-                // save results to database
-                stringstream fname;
-                fname << "../mus/" << setprecision(4) << U << "_" << g << "_"
-                      << omega << ".mu";
-                ofstream fstr(fname.str().c_str());
-                if (fstr.is_open()) {
-                    fstr << mu << " " << U << " " << g << " " << omega << endl
-                         << "# (above) mu_best U g omega" << endl
-                         << endl << endl
-                         << "# (below) mu DeltaN" << endl;
-                    for (uint i = 0; i < mu_adjust_N; ++i) {
-                        fstr << mus[i] << " " << N_mus[i] << endl;
-                    }
-                    fstr << "# L = " << L << endl
-                         << "# T = " << T << endl
-                         << "# mu_adjust_therm = " << mu_adjust_therm << endl
-                         << "# mu_adjust_sweep = " << mu_adjust_sweep << endl
-                         << "# linear model: f(x) = " << m << " * x + "
-                         << b << endl;
-                } else {
-                    cerr << "Warning: could not write results from mu"
-                            "adjustment to file " << fname.str() << endl;
-                }
-
-                recalc_directed_loop_probs();
-            } else {
-                mu = mus[abs(++mu_index)];
-                recalc_directed_loop_probs();
-            }
-        }
+    // exiting initial thermalization stage
+    if (therm_state.sweeps == therm && therm_state.stage == initial_stage) {
+        N_loop = (uint)(vtx_visited / avg_worm_len * M);
     }
 
-    // exiting initial thermalization stage
-    if (therm_state.sweeps == 0 && therm_state.stage == thermalized) {
-        N_loop = (uint)(vtx_visited / avg_worm_len * M);
+    // change thermalization stage as necessary
+    switch (therm_state.stage) {
+        case initial_stage:
+            if (therm_state.sweeps == therm) {
+                therm_state.set_stage(mu_adjust ? lower_stage : thermalized);
+                N_mu = 0;
+            }
+            break;
+        case lower_stage:
+            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+                lower_N = 1. * N_mu / mu_adjust_sweep;
+                therm_state.set_stage(upper_stage);
+                mu = upper_mu;
+                recalc_directed_loop_probs();
+                N_mu = 0;
+            }
+            break;
+        case upper_stage:
+            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+                upper_N = 1. * N_mu / mu_adjust_sweep;
+                therm_state.set_stage(convergence_stage);
+                mu = 0.5 * (lower_mu + upper_mu);
+                recalc_directed_loop_probs();
+                N_mu = 0;
+            }
+            break;
+        case convergence_stage:
+            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+                double center_N = 1. * N_mu / mu_adjust_sweep;
+                cout << "mu = " << mu << ", "
+                     << "N = " << center_N << endl;
+                if (center_N < N_el_up+N_el_down) {
+                    upper_mu = 0.5 * (lower_mu + upper_mu);
+                    upper_N = center_N;
+                } else {
+                    lower_mu = 0.5 * (lower_mu + upper_mu);
+                    lower_N = center_N;
+                }
+                cout << lower_mu << ".." << upper_mu << endl;
+                if (upper_mu - lower_mu > mu_adjust_tol) {
+                    therm_state.set_stage(convergence_stage);
+                } else {
+                    therm_state.set_stage(final_stage);
+                }
+                mu = 0.5 * (lower_mu + upper_mu);
+                recalc_directed_loop_probs();
+                N_mu = 0;
+            }
+            break;
+        case final_stage:
+            if (therm_state.sweeps == therm)
+                therm_state.set_stage(thermalized);
+            break;
+        case thermalized:
+            break;
     }
 
     // diagonal update & subsequence construction
@@ -735,7 +747,8 @@ void mc :: do_update() {
             }
             // logging worm length
             if (therm_state.stage == initial_stage
-                    && therm_state.sweeps < therm && therm_state.sweeps >= therm/2) {
+                    && therm_state.sweeps < therm
+                    && therm_state.sweeps >= therm/2) {
                 avg_worm_len *= 1.*worm_len_sample_size
                                 / (worm_len_sample_size+1);
                 avg_worm_len += 1.*k / (++worm_len_sample_size);
@@ -773,7 +786,8 @@ void mc :: do_update() {
     }
 
     // log the number of electrons if necessary
-    if (mu_adjust && therm_state.in_logging_stage() && therm_state.sweeps >= mu_adjust_therm) {
+    if (mu_adjust && therm_state.in_logging_stage()
+                  && therm_state.sweeps >= mu_adjust_therm) {
         for (uint s = 0; s < L; ++s) {
             N_mu += number_of_electrons(state[s]);
         }
@@ -972,10 +986,8 @@ void mc :: init() {
         lower_mu = mu - 0.5*mu_adjust_range;
         upper_mu = mu + 0.5*mu_adjust_range;
         mu = lower_mu;
-        therm_state.set_stage(initial_stage);
-    } else {
-        therm_stage.set_stage(final_stage);
     }
+    therm_state.set_stage(initial_stage);
     recalc_directed_loop_probs();
 
     // add observables
@@ -1010,13 +1022,14 @@ void mc :: write(string dir) {
     if (mu_adjust) {
         d.write(lower_mu);
         d.write(upper_mu);
+        d.write(N_mu);
     }
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
     ofstream f;
     f.open(dir.c_str());
-    f << ( (is_thermalized()) ? sweep-total_therm : 0 ) << endl;
+    f << ( (is_thermalized()) ? therm_state.sweeps : 0 ) << endl;
     f.close();
 }
 
@@ -1040,6 +1053,7 @@ bool mc :: read(string dir) {
         if (mu_adjust) {
             d.read(lower_mu);
             d.read(upper_mu);
+            d.read(N_mu);
         }
         d.close();
         recalc_directed_loop_probs();

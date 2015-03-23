@@ -114,9 +114,7 @@ struct thermalization_state {
             case upper_stage:
             case convergence_stage:
                 return true;
-            case initial_stage:
-            case final_stage:
-            case thermalized_stage:
+            default:
                 return false;
         }
     } 
@@ -272,7 +270,7 @@ private:
     double delta;
     double epsilon;
     double q_S, q_chi;
-    uint therm, total_therm;
+    uint therm;
     vector<el_state> state;
     vector<int> occ;
     vector<bond_operator> sm;
@@ -288,6 +286,8 @@ private:
     double avg_worm_len;
     uint worm_len_sample_size;
     bool mu_adjust;
+    int mu_adjust_therm;
+    int mu_adjust_sweep;
     double mu_adjust_range;
     double mu_adjust_tol;
     thermalization_state therm_state;
@@ -318,6 +318,7 @@ private:
     vector<double> sin_q_chi;
     double lower_mu, upper_mu;
     double lower_N, upper_N;
+    int N_mu;
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
