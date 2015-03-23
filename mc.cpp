@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <functional>
 #include <cmath>
-#include <gsl/gsl_fit.h>
 
 void bubble_sort_perm (int *a, int *p, uint k) {
     // initialize permutation

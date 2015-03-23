@@ -23,7 +23,7 @@ CFLAGS_SINGLE  = $(CFLAGS) $(DEFINES_SINGLE)
 CFLAGS_PT  = $(CFLAGS) $(DEFINES_PT)
 
 INCLUDE = -I$(MCLL) -I$(APPMCLL) 
-LDFLAGS = -lgsl -lgslcblas -lm
+LDFLAGS = -lm
 
 RM = /bin/rm -f
 
