@@ -839,8 +839,8 @@ void mc :: do_measurement() {
 
         for (uint r = 0; r < L; ++r) {
             for (uint j = 0; j < L; ++j) {
-                sum_nn[r] += n_p[j+r] * n_p[j];
-                sum_ss[r] += s_p[j+r] * s_p[j];
+                sum_nn[r] += n_p[(j+r)%L] * n_p[j];
+                sum_ss[r] += s_p[(j+r)%L] * s_p[j];
             }
         }
 
@@ -884,10 +884,10 @@ void mc :: do_measurement() {
         chi_rho_r[r] = 0.;
         chi_sigma_r[r] = 0.;
         for (uint j = 0; j < L; ++j) {
-            sum_nn[r] += n_p[j+r] * n_p[j];
-            sum_ss[r] += s_p[j+r] * s_p[j];
-            chi_rho_r[r] += 1./T/L/n/(n+1) * sum_n[j+r] * sum_n[j];
-            chi_sigma_r[r] += 1./T/L/n/(n+1) * sum_s[j+r] * sum_s[j];
+            sum_nn[r] += n_p[(j+r)%L] * n_p[j];
+            sum_ss[r] += s_p[(j+r)%L] * s_p[j];
+            chi_rho_r[r] += 1./T/L/n/(n+1) * sum_n[(j+r)%L] * sum_n[j];
+            chi_sigma_r[r] += 1./T/L/n/(n+1) * sum_s[(j+r)%L] * sum_s[j];
         }
         S_rho_r[r] = 1./L/(n+1)*sum_nn[r];
         S_sigma_r[r] = 1./L/(n+1)*sum_ss[r];
