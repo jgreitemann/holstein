@@ -280,7 +280,7 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
-    vector<int> sum_n, sum_s, sum_nn, sum_ss, sum_m;
+    vector<int> sum_n, sum_s, sum_m, sum_nn, sum_ss, n_p, s_p;
     vector<double> S_rho_r, S_sigma_r;
     vector<double> chi_rho_r, chi_sigma_r;
     vector<double> mean_m;

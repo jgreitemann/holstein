@@ -73,9 +73,11 @@ mc :: mc (string dir) {
     last.resize(L);
     sum_n.resize(L);
     sum_s.resize(L);
+    sum_m.resize(L);
     sum_nn.resize(L);
     sum_ss.resize(L);
-    sum_m.resize(L);
+    n_p.resize(L);
+    s_p.resize(L);
     S_rho_r.resize(L);
     S_sigma_r.resize(L);
     chi_rho_r.resize(L);
@@ -823,21 +825,23 @@ void mc :: do_measurement() {
     current_state = state;
     current_occ = occ;
     uint p = 0;
-    int n_s, n_0, s_s, s_0;
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == identity)
             continue;
 
-        n_0 = number_of_electrons(current_state[0]);
-        s_0 = local_magnetization(current_state[0]);
-        for (uint s = 0; s < L; ++s) {
-            n_s = number_of_electrons(current_state[s]);
-            s_s = local_magnetization(current_state[s]);
-            sum_n[s] += n_s;
-            sum_nn[s] += n_s * n_0;
-            sum_s[s] += s_s;
-            sum_ss[s] += s_s * s_0;
-            sum_m[s] += current_occ[s];
+        for (uint j = 0; j < L; ++j) {
+            n_p[j] = number_of_electrons(current_state[j]);
+            s_p[j] = local_magnetization(current_state[j]);
+            sum_n[j] += n_p[j];
+            sum_s[j] += s_p[j];
+            sum_m[j] += current_occ[j];
+        }
+
+        for (uint r = 0; r < L; ++r) {
+            for (uint j = 0; j < L; ++j) {
+                sum_nn[r] += n_p[j+r] * n_p[j];
+                sum_ss[r] += s_p[j+r] * s_p[j];
+            }
         }
 
         bond_operator b = sm[i];
@@ -872,22 +876,28 @@ void mc :: do_measurement() {
     }
 
     // calculate real space correlation functions and susceptibilities
-    for (uint s = 0; s < L; ++s) {
-        n_s = number_of_electrons(current_state[s]);
-        s_s = local_magnetization(current_state[s]);
-        sum_nn[s] += n_s * n_0;
-        sum_ss[s] += s_s * s_0;
-        S_rho_r[s] = 1./(n+1)*sum_nn[s];
-        S_sigma_r[s] = 1./(n+1)*sum_ss[s];
+    for (uint j = 0; j < L; ++j) {
+        n_p[j] = number_of_electrons(current_state[j]);
+        s_p[j] = local_magnetization(current_state[j]);
+    }
+    for (uint r = 0; r < L; ++r) {
+        chi_rho_r[r] = 0.;
+        chi_sigma_r[r] = 0.;
+        for (uint j = 0; j < L; ++j) {
+            sum_nn[r] += n_p[j+r] * n_p[j];
+            sum_ss[r] += s_p[j+r] * s_p[j];
+            chi_rho_r[r] += 1./T/L/n/(n+1) * sum_n[j+r] * sum_n[j];
+            chi_sigma_r[r] += 1./T/L/n/(n+1) * sum_s[j+r] * sum_s[j];
+        }
+        S_rho_r[r] = 1./L/(n+1)*sum_nn[r];
+        S_sigma_r[r] = 1./L/(n+1)*sum_ss[r];
         // cf. [DT01]
-        chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0]
-                       + 1./T/(n+1)/(n+1)*sum_nn[s];
-        chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0]
-                         + 1./T/(n+1)/(n+1)*sum_ss[s];
-        mean_m[s] = 1./n*sum_m[s];
+        chi_rho_r[r] += 1./T/L/(n+1)/(n+1)*sum_nn[r];
+        chi_sigma_r[r] += 1./T/L/(n+1)/(n+1)*sum_ss[r];
+        mean_m[r] = 1./n*sum_m[r];
         // accumulate ms
-        if (s > 0) {
-            mean_m[s] += mean_m[s-1];
+        if (r > 0) {
+            mean_m[r] += mean_m[r-1];
         }
     }
     mean_m[L-1] /= L;
