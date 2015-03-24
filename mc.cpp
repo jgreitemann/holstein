@@ -931,6 +931,10 @@ void mc :: do_measurement() {
     measure.add("chi_sigma_q_re", chi_sigma_q_re);
     measure.add("chi_sigma_q_im", chi_sigma_q_im);
     measure.add("ph_density", mean_m[L-1]);
+    measure.add("S_rho_r", S_rho_r);
+    measure.add("S_sigma_r", S_sigma_r);
+    measure.add("chi_rho_r", chi_rho_r);
+    measure.add("chi_sigma_r", chi_sigma_r);
 }
 
 
@@ -1020,6 +1024,10 @@ void mc :: init() {
     measure.add_observable("chi_sigma_q_re");
     measure.add_observable("chi_sigma_q_im");
     measure.add_observable("ph_density");
+    measure.add_vectorobservable("S_rho_r", L);
+    measure.add_vectorobservable("S_sigma_r", L);
+    measure.add_vectorobservable("chi_rho_r", L);
+    measure.add_vectorobservable("chi_sigma_r", L);
 }
 
 void mc :: write(string dir) {
