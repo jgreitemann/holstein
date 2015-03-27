@@ -47,6 +47,7 @@ mc :: mc (string dir) {
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 20);
+    N_tau = param.value_or_default<int>("N_TAU", 250);
     mu_adjust = param.value_or_default<bool>("MU_ADJUST", 0);
     mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1);
     mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 10);
@@ -76,12 +77,12 @@ mc :: mc (string dir) {
     sum_m.resize(L);
     sum_nn.resize(L);
     sum_ss.resize(L);
+    n_0.resize(L);
+    s_0.resize(L);
     n_p.resize(L);
     s_p.resize(L);
-    S_rho_r.resize(L);
-    S_sigma_r.resize(L);
-    chi_rho_r.resize(L);
-    chi_sigma_r.resize(L);
+    C_rho_r.resize(L);
+    C_sigma_r.resize(L);
     mean_m.resize(L);
     cos_q_chi.resize(L);
     sin_q_chi.resize(L);
@@ -236,10 +237,12 @@ mc :: ~mc() {
     sum_nn.clear();
     sum_ss.clear();
     sum_m.clear();
-    S_rho_r.clear();
-    S_sigma_r.clear();
-    chi_rho_r.clear();
-    chi_sigma_r.clear();
+    n_0.clear();
+    s_0.clear();
+    n_p.clear();
+    s_p.clear();
+    C_rho_r.clear();
+    C_sigma_r.clear();
     mean_m.clear();
 }
 
@@ -816,15 +819,22 @@ void mc :: do_measurement() {
     // add data to measurement
     measure.add("Energy", energy);
 
-    // calculate correlation functions and susceptibilities
-    fill(sum_n.begin(), sum_n.end(), 0);
-    fill(sum_s.begin(), sum_s.end(), 0);
-    fill(sum_nn.begin(), sum_nn.end(), 0);
-    fill(sum_ss.begin(), sum_ss.end(), 0);
+    // generate imaginary times and sort
+    tau.resize(n);
+    for (uint p = 0; p < n; ++p) {
+        tau[p] = random01()*0.5/T;
+    }
+    sort(tau.begin(), tau.end());
+
+    // calculate dynamical correlation functions
     fill(sum_m.begin(), sum_m.end(), 0);
     current_state = state;
     current_occ = occ;
-    uint p = 0;
+    uint p = 0, l = (int)ceil(tau[n-1] * N_tau * 2. * T) % N_tau;
+    for (uint j = 0; j < L; ++j) {
+        n_0[j] = number_of_electrons(current_state[j]);
+        s_0[j] = local_magnetization(current_state[j]);
+    }
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == identity)
             continue;
@@ -832,15 +842,25 @@ void mc :: do_measurement() {
         for (uint j = 0; j < L; ++j) {
             n_p[j] = number_of_electrons(current_state[j]);
             s_p[j] = local_magnetization(current_state[j]);
-            sum_n[j] += n_p[j];
-            sum_s[j] += s_p[j];
             sum_m[j] += current_occ[j];
         }
 
         for (uint r = 0; r < L; ++r) {
+            sum_nn[r] = 0;
+            sum_ss[r] = 0;
             for (uint j = 0; j < L; ++j) {
-                sum_nn[r] += n_p[(j+r)%L] * n_p[j];
-                sum_ss[r] += s_p[(j+r)%L] * s_p[j];
+                sum_nn[r] += n_p[(j+r)%L] * n_0[j];
+                sum_ss[r] += s_p[(j+r)%L] * s_0[j];
+            }
+        }
+
+        // Assign correlation to all imaginary times between tau_(p-1)
+        // and tau_p
+        for (;  0.5*l/T/N_tau < tau[p]
+             || (p == 0  && 0.5*l/T/N_tau > tau[n-1]); l = (l+1)%N_tau) {
+            for (uint r = 0; r < L; ++r) {
+                C_rho_r[N_tau*r+l] = 1. * sum_nn[r] / L;
+                C_sigma_r[N_tau*r+l] = 1. * sum_ss[r] / L;
             }
         }
 
@@ -875,66 +895,34 @@ void mc :: do_measurement() {
         ++p;
     }
 
-    // calculate real space correlation functions and susceptibilities
-    for (uint j = 0; j < L; ++j) {
-        n_p[j] = number_of_electrons(current_state[j]);
-        s_p[j] = local_magnetization(current_state[j]);
+    // accumulate ms
+    for (uint r = 1; r < L; ++r) {
+        mean_m[r] += mean_m[r-1];
     }
-    for (uint r = 0; r < L; ++r) {
-        chi_rho_r[r] = 0.;
-        chi_sigma_r[r] = 0.;
-        for (uint j = 0; j < L; ++j) {
-            sum_nn[r] += n_p[(j+r)%L] * n_p[j];
-            sum_ss[r] += s_p[(j+r)%L] * s_p[j];
-            chi_rho_r[r] += 1./T/L/n/(n+1) * sum_n[(j+r)%L] * sum_n[j];
-            chi_sigma_r[r] += 1./T/L/n/(n+1) * sum_s[(j+r)%L] * sum_s[j];
-        }
-        S_rho_r[r] = 1./L/(n+1)*sum_nn[r];
-        S_sigma_r[r] = 1./L/(n+1)*sum_ss[r];
-        // cf. [DT01]
-        chi_rho_r[r] += 1./T/L/(n+1)/(n+1)*sum_nn[r];
-        chi_sigma_r[r] += 1./T/L/(n+1)/(n+1)*sum_ss[r];
-        mean_m[r] = 1./n*sum_m[r];
-        // accumulate ms
-        if (r > 0) {
-            mean_m[r] += mean_m[r-1];
-        }
-    }
-    mean_m[L-1] /= L;
 
     // Fourier transform
-    double S_rho_q_re = 0.0;
-    double S_rho_q_im = 0.0;
-    double S_sigma_q_re = 0.0;
-    double S_sigma_q_im = 0.0;
-    double chi_rho_q_re = 0.0;
-    double chi_rho_q_im = 0.0;
-    double chi_sigma_q_re = 0.0;
-    double chi_sigma_q_im = 0.0;
+    double S_rho_q = 0.0;
+    double S_sigma_q = 0.0;
+    double chi_rho_q = 0.0;
+    double chi_sigma_q = 0.0;
     for (uint s = 0; s < L; ++s) {
-        S_rho_q_re += cos_q_S[s] * S_rho_r[s];
-        S_rho_q_im += sin_q_S[s] * S_rho_r[s];
-        S_sigma_q_re += cos_q_S[s] * S_sigma_r[s];
-        S_sigma_q_im += sin_q_S[s] * S_sigma_r[s];
-        chi_rho_q_re += cos_q_chi[s] * chi_rho_r[s];
-        chi_rho_q_im += sin_q_chi[s] * chi_rho_r[s];
-        chi_sigma_q_re += cos_q_chi[s] * chi_sigma_r[s];
-        chi_sigma_q_im += sin_q_chi[s] * chi_sigma_r[s];
+        S_rho_q += cos_q_S[s] * C_rho_r[N_tau*s];
+        S_sigma_q += cos_q_S[s] * C_sigma_r[N_tau*s];
+        for (uint l = 0; l < N_tau; ++l) {
+            chi_rho_q += cos_q_chi[s] * C_rho_r[N_tau*s+l];
+            chi_sigma_q += cos_q_chi[s] * C_sigma_r[N_tau*s+l];
+        }
     }
+    chi_rho_q *= 1./T/N_tau;
+    chi_sigma_q *= 1./T/N_tau;
 
-    measure.add("S_rho_q_re", S_rho_q_re);
-    measure.add("S_rho_q_im", S_rho_q_im);
-    measure.add("S_sigma_q_re", S_sigma_q_re);
-    measure.add("S_sigma_q_im", S_sigma_q_im);
-    measure.add("chi_rho_q_re", chi_rho_q_re);
-    measure.add("chi_rho_q_im", chi_rho_q_im);
-    measure.add("chi_sigma_q_re", chi_sigma_q_re);
-    measure.add("chi_sigma_q_im", chi_sigma_q_im);
-    measure.add("ph_density", mean_m[L-1]);
-    measure.add("S_rho_r", S_rho_r);
-    measure.add("S_sigma_r", S_sigma_r);
-    measure.add("chi_rho_r", chi_rho_r);
-    measure.add("chi_sigma_r", chi_sigma_r);
+    measure.add("S_rho_q", S_rho_q);
+    measure.add("S_sigma_q", S_sigma_q);
+    measure.add("chi_rho_q", chi_rho_q);
+    measure.add("chi_sigma_q", chi_sigma_q);
+    measure.add("ph_density", 1./L*mean_m[L-1]);
+    measure.add("C_rho_r", C_rho_r);
+    measure.add("C_sigma_r", C_sigma_r);
 }
 
 
@@ -1015,19 +1003,13 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_observable("S_rho_q_re");
-    measure.add_observable("S_rho_q_im");
-    measure.add_observable("S_sigma_q_re");
-    measure.add_observable("S_sigma_q_im");
-    measure.add_observable("chi_rho_q_re");
-    measure.add_observable("chi_rho_q_im");
-    measure.add_observable("chi_sigma_q_re");
-    measure.add_observable("chi_sigma_q_im");
+    measure.add_observable("S_rho_q");
+    measure.add_observable("S_sigma_q");
+    measure.add_observable("chi_rho_q");
+    measure.add_observable("chi_sigma_q");
     measure.add_observable("ph_density");
-    measure.add_vectorobservable("S_rho_r", L);
-    measure.add_vectorobservable("S_sigma_r", L);
-    measure.add_vectorobservable("chi_rho_r", L);
-    measure.add_vectorobservable("chi_sigma_r", L);
+    measure.add_vectorobservable("C_rho_r", L*N_tau);
+    measure.add_vectorobservable("C_sigma_r", L*N_tau);
 }
 
 void mc :: write(string dir) {

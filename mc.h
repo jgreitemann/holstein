@@ -231,6 +231,7 @@ class mc {
 private:
     uint M;
     uint Np;
+    uint N_tau;
     uint L;
     double T;
     uint N_el_up, N_el_down;
@@ -280,10 +281,10 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
-    vector<int> sum_n, sum_s, sum_m, sum_nn, sum_ss, n_p, s_p;
-    vector<double> S_rho_r, S_sigma_r;
-    vector<double> chi_rho_r, chi_sigma_r;
+    vector<int> sum_n, sum_s, sum_m, sum_nn, sum_ss, n_0, s_0, n_p, s_p;
+    vector<double> C_rho_r, C_sigma_r;
     vector<double> mean_m;
+    vector<double> tau;
     vector<double> cos_q_S;
     vector<double> sin_q_S;
     vector<double> cos_q_chi;
