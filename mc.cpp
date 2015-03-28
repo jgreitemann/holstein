@@ -76,6 +76,8 @@ mc :: mc (string dir) {
     sum_nn.resize(L);
     sum_ss.resize(L);
     sum_m.resize(L);
+    n_p.resize(L);
+    s_p.resize(L);
     S_rho_r.resize(L);
     S_sigma_r.resize(L);
     chi_rho_r.resize(L);
@@ -234,6 +236,8 @@ mc :: ~mc() {
     sum_nn.clear();
     sum_ss.clear();
     sum_m.clear();
+    n_p.clear();
+    s_p.clear();
     S_rho_r.clear();
     S_sigma_r.clear();
     chi_rho_r.clear();
@@ -817,26 +821,25 @@ void mc :: do_measurement() {
     // calculate correlation functions and susceptibilities
     fill(sum_n.begin(), sum_n.end(), 0);
     fill(sum_s.begin(), sum_s.end(), 0);
-    fill(sum_nn.begin(), sum_nn.end(), 0);
-    fill(sum_ss.begin(), sum_ss.end(), 0);
-    fill(sum_m.begin(), sum_m.end(), 0);
     current_state = state;
     current_occ = occ;
     uint p = 0;
-    int n_s, n_0, s_s, s_0;
+    for (uint s = 0; s < L; ++s) {
+        n_p[s] = number_of_electrons(current_state[s]);
+        s_p[s] = local_magnetization(current_state[s]);
+        sum_nn[s] = n_p[s] * n_p[0];
+        sum_ss[s] = s_p[s] * s_p[0];
+        sum_m[s] = current_occ[s];
+    }
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == identity)
             continue;
 
-        n_0 = number_of_electrons(current_state[0]);
-        s_0 = local_magnetization(current_state[0]);
         for (uint s = 0; s < L; ++s) {
-            n_s = number_of_electrons(current_state[s]);
-            s_s = local_magnetization(current_state[s]);
-            sum_n[s] += n_s;
-            sum_nn[s] += n_s * n_0;
-            sum_s[s] += s_s;
-            sum_ss[s] += s_s * s_0;
+            sum_n[s] += n_p[s];
+            sum_nn[s] += n_p[s] * n_p[0];
+            sum_s[s] += s_p[s];
+            sum_ss[s] += s_p[s] * s_p[0];
             sum_m[s] += current_occ[s];
         }
 
@@ -848,12 +851,28 @@ void mc :: do_measurement() {
                     flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+                n_p[LEFT_SITE(b.bond)] =
+                    number_of_electrons(current_state[LEFT_SITE(b.bond)]);
+                s_p[LEFT_SITE(b.bond)] =
+                    local_magnetization(current_state[LEFT_SITE(b.bond)]);
+                n_p[RIGHT_SITE(b.bond)] =
+                    number_of_electrons(current_state[RIGHT_SITE(b.bond)]);
+                s_p[RIGHT_SITE(b.bond)] =
+                    local_magnetization(current_state[RIGHT_SITE(b.bond)]);
                 break;
             case down_hopping:
                 current_state[LEFT_SITE(b.bond)] =
                     flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
+                n_p[LEFT_SITE(b.bond)] =
+                    number_of_electrons(current_state[LEFT_SITE(b.bond)]);
+                s_p[LEFT_SITE(b.bond)] =
+                    local_magnetization(current_state[LEFT_SITE(b.bond)]);
+                n_p[RIGHT_SITE(b.bond)] =
+                    number_of_electrons(current_state[RIGHT_SITE(b.bond)]);
+                s_p[RIGHT_SITE(b.bond)] =
+                    local_magnetization(current_state[RIGHT_SITE(b.bond)]);
                 break;
             case creator_left:
                 current_occ[LEFT_SITE(b.bond)]++;
@@ -873,10 +892,6 @@ void mc :: do_measurement() {
 
     // calculate real space correlation functions and susceptibilities
     for (uint s = 0; s < L; ++s) {
-        n_s = number_of_electrons(current_state[s]);
-        s_s = local_magnetization(current_state[s]);
-        sum_nn[s] += n_s * n_0;
-        sum_ss[s] += s_s * s_0;
         S_rho_r[s] = 1./(n+1)*sum_nn[s];
         S_sigma_r[s] = 1./(n+1)*sum_ss[s];
         // cf. [DT01]
@@ -884,7 +899,7 @@ void mc :: do_measurement() {
                        + 1./T/(n+1)/(n+1)*sum_nn[s];
         chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0]
                          + 1./T/(n+1)/(n+1)*sum_ss[s];
-        mean_m[s] = 1./n*sum_m[s];
+        mean_m[s] = 1./(n+1)*sum_m[s];
         // accumulate ms
         if (s > 0) {
             mean_m[s] += mean_m[s-1];
