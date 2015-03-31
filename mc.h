@@ -269,7 +269,7 @@ private:
     double g;
     double delta;
     double epsilon;
-    double q_S, q_chi;
+    double q_S;
     uint therm;
     vector<el_state> state;
     vector<int> occ;
@@ -308,18 +308,14 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
-    vector<int> sum_n, sum_s, sum_nn, sum_ss, sum_m;
     vector<double> S_rho_r, S_sigma_r;
-    vector<double> chi_rho_r, chi_sigma_r;
-    vector<double> mean_m;
+    vector<int> n_p, s_p;
     vector<double> cos_q_S;
-    vector<double> sin_q_S;
-    vector<double> cos_q_chi;
-    vector<double> sin_q_chi;
     double lower_mu, upper_mu;
     double lower_N, upper_N;
     int N_mu;
     stringstream mu_data, bisection_protocol;
+
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
@@ -335,7 +331,7 @@ private:
     void init_assignments();
     void init_vertices();
 
-public:    
+public:
     parser param;
     void param_init(string dir) {param.read_file(dir);}
     randomnumbergenerator *rng;
