@@ -311,19 +311,10 @@ private:
     vector<double> S_rho_r, S_sigma_r;
     vector<int> n_p, s_p;
     vector<double> cos_q_S;
-<<<<<<< HEAD
-    vector<double> sin_q_S;
-    vector<double> cos_q_chi;
-    vector<double> sin_q_chi;
     double lower_mu, upper_mu;
     double lower_N, upper_N;
     int N_mu;
     stringstream mu_data, bisection_protocol;
-=======
-    vector<double> mus;
-    vector<double> N_mus;
-
->>>>>>> fast_corr
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
@@ -339,7 +330,7 @@ private:
     void init_assignments();
     void init_vertices();
 
-public:    
+public:
     parser param;
     void param_init(string dir) {param.read_file(dir);}
     randomnumbergenerator *rng;
