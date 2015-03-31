@@ -905,6 +905,10 @@ void mc :: do_measurement() {
                                     + 1./(n+1)/(n+1) * sum_s_staggered_sq);
     measure.add("chi_rho_pi", chi_rho_pi);
     measure.add("chi_sigma_pi", chi_sigma_pi);
+
+    // measure real space correlations
+    measure.add("S_rho_r", S_rho_r);
+    measure.add("S_sigma_r", S_sigma_r);
 }
 
 
@@ -990,6 +994,8 @@ void mc :: init() {
     measure.add_observable("S_sigma_q");
     measure.add_observable("chi_rho_pi");
     measure.add_observable("chi_sigma_pi");
+    measure.add_vectorobservable("S_rho_r", L);
+    measure.add_vectorobservable("S_sigma_r", L);
 }
 
 void mc :: write(string dir) {
