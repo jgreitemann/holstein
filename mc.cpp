@@ -40,7 +40,6 @@ mc :: mc (string dir) {
     omega = param.value_or_default<double>("OMEGA", 1.);
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
-    q_chi = param.value_or_default<double>("Q_CHI", M_PI);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
@@ -71,29 +70,15 @@ mc :: mc (string dir) {
     initial_Nd.resize(L);
     first.resize(L);
     last.resize(L);
-    sum_n.resize(L);
-    sum_s.resize(L);
-    sum_nn.resize(L);
-    sum_ss.resize(L);
-    sum_m.resize(L);
-    n_p.resize(L);
-    s_p.resize(L);
     S_rho_r.resize(L);
     S_sigma_r.resize(L);
-    chi_rho_r.resize(L);
-    chi_sigma_r.resize(L);
-    mean_m.resize(L);
-    cos_q_chi.resize(L);
-    sin_q_chi.resize(L);
+    n_p.resize(L);
+    s_p.resize(L);
     cos_q_S.resize(L);
-    sin_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
     for (uint s = 0; s < L; ++s) {
-        cos_q_chi[s] = cos(q_chi*s);
-        sin_q_chi[s] = sin(q_chi*s);
         cos_q_S[s] = cos(q_S*s);
-        sin_q_S[s] = sin(q_S*s);
     }
 }
 
@@ -231,18 +216,11 @@ mc :: ~mc() {
     link.clear();
     first.clear();
     last.clear();
-    sum_n.clear();
-    sum_s.clear();
-    sum_nn.clear();
-    sum_ss.clear();
-    sum_m.clear();
-    n_p.clear();
-    s_p.clear();
     S_rho_r.clear();
     S_sigma_r.clear();
-    chi_rho_r.clear();
-    chi_sigma_r.clear();
-    mean_m.clear();
+    n_p.clear();
+    s_p.clear();
+    cos_q_S.clear();
 }
 
 void mc :: do_update() {
@@ -818,124 +796,115 @@ void mc :: do_measurement() {
     // add data to measurement
     measure.add("Energy", energy);
 
-    // calculate correlation functions and susceptibilities
-    fill(sum_n.begin(), sum_n.end(), 0);
-    fill(sum_s.begin(), sum_s.end(), 0);
-    current_state = state;
-    current_occ = occ;
-    uint p = 0;
-    for (uint s = 0; s < L; ++s) {
-        n_p[s] = number_of_electrons(current_state[s]);
-        s_p[s] = local_magnetization(current_state[s]);
-        sum_nn[s] = n_p[s] * n_p[0];
-        sum_ss[s] = s_p[s] * s_p[0];
-        sum_m[s] = current_occ[s];
+    // calculate real space correlation functions (at p = 0)
+    int n_staggered = 0, s_staggered = 0;
+    int m = 0;
+    for (uint j = 0; j < L; ++j) {
+        n_p[j] = number_of_electrons(state[j]);
+        s_p[j] = local_magnetization(state[j]);
+        if (j & 1) {
+            n_staggered -= n_p[j];
+            s_staggered -= s_p[j];
+        } else {
+            n_staggered += n_p[j];
+            s_staggered += s_p[j];
+        }
+        m += occ[j];
     }
+    measure.add("ph_density", 1.*m/L);
+    for (uint r = 0; r < L; ++r) {
+        double sum_nn = 0, sum_ss = 0;
+        for (uint j = 0; j < L; ++j) {
+            sum_nn += n_p[(j+r)%L] * n_p[j];
+            sum_ss += s_p[(j+r)%L] * s_p[j];
+        }
+        S_rho_r[r] = 1./L*sum_nn;
+        S_sigma_r[r] = 1./L*sum_ss;
+    }
+
+    // Fourier transform to obtain structure factors
+    double S_rho_q = 0.0;
+    double S_sigma_q = 0.0;
+    for (uint s = 0; s < L; ++s) {
+        S_rho_q += cos_q_S[s] * S_rho_r[s];
+        S_sigma_q += cos_q_S[s] * S_sigma_r[s];
+    }
+    measure.add("S_rho_q", S_rho_q);
+    measure.add("S_sigma_q", S_sigma_q);
+
+    // calculate staggered susceptibilities - traverse the operator string
+    current_state = state;
+    uint p = 0;
+    int sum_n_staggered = 0, sum_n_staggered_sq = n_staggered * n_staggered;
+    int sum_s_staggered = 0, sum_s_staggered_sq = s_staggered * s_staggered;
     for (uint i = 0; p < n; ++i) {
+        // fast-forward to next proper operator
         if (sm[i] == identity)
             continue;
-
-        for (uint s = 0; s < L; ++s) {
-            sum_n[s] += n_p[s];
-            sum_nn[s] += n_p[s] * n_p[0];
-            sum_s[s] += s_p[s];
-            sum_ss[s] += s_p[s] * s_p[0];
-            sum_m[s] += current_occ[s];
-        }
-
+        // sample staggered density & spin & their squares
+        sum_n_staggered += n_staggered;
+        sum_n_staggered_sq += n_staggered * n_staggered;
+        sum_s_staggered += s_staggered;
+        sum_s_staggered_sq += s_staggered * s_staggered;
+        // imaginary time propagation of state
         bond_operator b = sm[i];
-        // propagation of state
         switch (b.type) {
             case up_hopping:
                 current_state[LEFT_SITE(b.bond)] =
                     flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
-                n_p[LEFT_SITE(b.bond)] =
-                    number_of_electrons(current_state[LEFT_SITE(b.bond)]);
-                s_p[LEFT_SITE(b.bond)] =
-                    local_magnetization(current_state[LEFT_SITE(b.bond)]);
-                n_p[RIGHT_SITE(b.bond)] =
-                    number_of_electrons(current_state[RIGHT_SITE(b.bond)]);
-                s_p[RIGHT_SITE(b.bond)] =
-                    local_magnetization(current_state[RIGHT_SITE(b.bond)]);
+                if (current_state[LEFT_SITE(b.bond)] & up) {
+                    if (b.bond & 1) {
+                        n_staggered += 2;
+                        s_staggered += 2;
+                    } else {
+                        n_staggered -= 2;
+                        s_staggered -= 2;
+                    }
+                } else {
+                    if (b.bond & 1) {
+                        n_staggered -= 2;
+                        s_staggered -= 2;
+                    } else {
+                        n_staggered += 2;
+                        s_staggered += 2;
+                    }
+                }
                 break;
             case down_hopping:
                 current_state[LEFT_SITE(b.bond)] =
                     flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
-                n_p[LEFT_SITE(b.bond)] =
-                    number_of_electrons(current_state[LEFT_SITE(b.bond)]);
-                s_p[LEFT_SITE(b.bond)] =
-                    local_magnetization(current_state[LEFT_SITE(b.bond)]);
-                n_p[RIGHT_SITE(b.bond)] =
-                    number_of_electrons(current_state[RIGHT_SITE(b.bond)]);
-                s_p[RIGHT_SITE(b.bond)] =
-                    local_magnetization(current_state[RIGHT_SITE(b.bond)]);
-                break;
-            case creator_left:
-                current_occ[LEFT_SITE(b.bond)]++;
-                break;
-            case creator_right:
-                current_occ[RIGHT_SITE(b.bond)]++;
-                break;
-            case annihilator_left:
-                current_occ[LEFT_SITE(b.bond)]--;
-                break;
-            case annihilator_right:
-                current_occ[RIGHT_SITE(b.bond)]--;
+                if (current_state[LEFT_SITE(b.bond)] & down) {
+                    if (b.bond & 1) {
+                        n_staggered += 2;
+                        s_staggered -= 2;
+                    } else {
+                        n_staggered -= 2;
+                        s_staggered += 2;
+                    }
+                } else {
+                    if (b.bond & 1) {
+                        n_staggered -= 2;
+                        s_staggered += 2;
+                    } else {
+                        n_staggered += 2;
+                        s_staggered -= 2;
+                    }
+                }
                 break;
         }
         ++p;
     }
-
-    // calculate real space correlation functions and susceptibilities
-    for (uint s = 0; s < L; ++s) {
-        S_rho_r[s] = 1./(n+1)*sum_nn[s];
-        S_sigma_r[s] = 1./(n+1)*sum_ss[s];
-        // cf. [DT01]
-        chi_rho_r[s] = 1./T/n/(n+1)*sum_n[s]*sum_n[0]
-                       + 1./T/(n+1)/(n+1)*sum_nn[s];
-        chi_sigma_r[s] = 1./T/n/(n+1)*sum_s[s]*sum_s[0]
-                         + 1./T/(n+1)/(n+1)*sum_ss[s];
-        mean_m[s] = 1./(n+1)*sum_m[s];
-        // accumulate ms
-        if (s > 0) {
-            mean_m[s] += mean_m[s-1];
-        }
-    }
-    mean_m[L-1] /= L;
-
-    // Fourier transform
-    double S_rho_q_re = 0.0;
-    double S_rho_q_im = 0.0;
-    double S_sigma_q_re = 0.0;
-    double S_sigma_q_im = 0.0;
-    double chi_rho_q_re = 0.0;
-    double chi_rho_q_im = 0.0;
-    double chi_sigma_q_re = 0.0;
-    double chi_sigma_q_im = 0.0;
-    for (uint s = 0; s < L; ++s) {
-        S_rho_q_re += cos_q_S[s] * S_rho_r[s];
-        S_rho_q_im += sin_q_S[s] * S_rho_r[s];
-        S_sigma_q_re += cos_q_S[s] * S_sigma_r[s];
-        S_sigma_q_im += sin_q_S[s] * S_sigma_r[s];
-        chi_rho_q_re += cos_q_chi[s] * chi_rho_r[s];
-        chi_rho_q_im += sin_q_chi[s] * chi_rho_r[s];
-        chi_sigma_q_re += cos_q_chi[s] * chi_sigma_r[s];
-        chi_sigma_q_im += sin_q_chi[s] * chi_sigma_r[s];
-    }
-
-    measure.add("S_rho_q_re", S_rho_q_re);
-    measure.add("S_rho_q_im", S_rho_q_im);
-    measure.add("S_sigma_q_re", S_sigma_q_re);
-    measure.add("S_sigma_q_im", S_sigma_q_im);
-    measure.add("chi_rho_q_re", chi_rho_q_re);
-    measure.add("chi_rho_q_im", chi_rho_q_im);
-    measure.add("chi_sigma_q_re", chi_sigma_q_re);
-    measure.add("chi_sigma_q_im", chi_sigma_q_im);
-    measure.add("ph_density", mean_m[L-1]);
+    // cf. [DT01]
+    double chi_rho_pi = 1./T/L * (1./n/(n+1) * sum_n_staggered * sum_n_staggered
+                                  + 1./(n+1)/(n+1) * sum_n_staggered_sq);
+    double chi_sigma_pi = 1./T/L * (1./n/(n+1) * sum_s_staggered * sum_s_staggered
+                                    + 1./(n+1)/(n+1) * sum_s_staggered_sq);
+    measure.add("chi_rho_pi", chi_rho_pi);
+    measure.add("chi_sigma_pi", chi_sigma_pi);
 }
 
 
@@ -1016,15 +985,11 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_observable("S_rho_q_re");
-    measure.add_observable("S_rho_q_im");
-    measure.add_observable("S_sigma_q_re");
-    measure.add_observable("S_sigma_q_im");
-    measure.add_observable("chi_rho_q_re");
-    measure.add_observable("chi_rho_q_im");
-    measure.add_observable("chi_sigma_q_re");
-    measure.add_observable("chi_sigma_q_im");
     measure.add_observable("ph_density");
+    measure.add_observable("S_rho_q");
+    measure.add_observable("S_sigma_q");
+    measure.add_observable("chi_rho_pi");
+    measure.add_observable("chi_sigma_pi");
 }
 
 void mc :: write(string dir) {
