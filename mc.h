@@ -217,6 +217,20 @@ union list_position {
 
 const list_position invalid_pos = list_position(bottom_left, -1);
 
+struct fourier_mode {
+    double q;
+    double n_q_re;
+    double n_q_im;
+    double s_q_re;
+    double s_q_im;
+    double sum_n_q_re;
+    double sum_n_q_im;
+    double sum_s_q_re;
+    double sum_s_q_im;
+    vector<double> cos_q;
+    vector<double> sin_q;
+};
+
 #ifndef NDEBUG
 template class vector<int>;
 template class vector<double>;
@@ -242,7 +256,9 @@ private:
     double g;
     double delta;
     double epsilon;
-    double q_S, q_chi;
+    double q_S;
+    vector<double> qvec;
+    int matsubara;
     uint therm, total_therm;
     vector<el_state> state;
     vector<int> occ;
@@ -281,14 +297,12 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
-    vector<int> sum_n, sum_s, sum_m, sum_nn, sum_ss, n_0, s_0, n_p, s_p;
-    vector<double> C_rho_r, C_sigma_r;
+    vector<fourier_mode> ns_q;
+    vector<double> C_rho_q, C_sigma_q;
     vector<double> mean_m;
     vector<double> tau;
     vector<double> cos_q_S;
     vector<double> sin_q_S;
-    vector<double> cos_q_chi;
-    vector<double> sin_q_chi;
     vector<double> mus;
     vector<double> N_mus;
 

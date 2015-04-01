@@ -40,14 +40,14 @@ mc :: mc (string dir) {
     omega = param.value_or_default<double>("OMEGA", 1.);
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
-    q_chi = param.value_or_default<double>("Q_CHI", M_PI);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
+    qvec = param.return_vector<double>("@Q");
+    matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 20);
-    N_tau = param.value_or_default<int>("N_TAU", 250);
     mu_adjust = param.value_or_default<bool>("MU_ADJUST", 0);
     mu_adjust_range = param.value_or_default<double>("MU_ADJUST_RANGE", 0.1);
     mu_adjust_N = param.value_or_default<int>("MU_ADJUST_N", 10);
@@ -72,29 +72,24 @@ mc :: mc (string dir) {
     initial_Nd.resize(L);
     first.resize(L);
     last.resize(L);
-    sum_n.resize(L);
-    sum_s.resize(L);
-    sum_m.resize(L);
-    sum_nn.resize(L);
-    sum_ss.resize(L);
-    n_0.resize(L);
-    s_0.resize(L);
-    n_p.resize(L);
-    s_p.resize(L);
-    C_rho_r.resize(L);
-    C_sigma_r.resize(L);
+    C_rho_q.resize(qvec.size());
+    C_sigma_q.resize(qvec.size());
     mean_m.resize(L);
-    cos_q_chi.resize(L);
-    sin_q_chi.resize(L);
     cos_q_S.resize(L);
     sin_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
-    for (uint s = 0; s < L; ++s) {
-        cos_q_chi[s] = cos(q_chi*s);
-        sin_q_chi[s] = sin(q_chi*s);
-        cos_q_S[s] = cos(q_S*s);
-        sin_q_S[s] = sin(q_S*s);
+    vector<double>::iterator qit;
+    fourier_mode mode;
+    for (qit = qvec.begin(); qit != qvec.end(); ++qit) {
+        mode.q = *qit;
+        mode.cos_q.resize(L);
+        mode.sin_q.resize(L);
+        for (uint j = 0; j < L; ++j) {
+            mode.cos_q[j] = cos(mode.q*j);
+            mode.sin_q[j] = sin(mode.q*j);
+        }
+        ns_q.push_back(mode);
     }
 }
 
@@ -232,18 +227,11 @@ mc :: ~mc() {
     link.clear();
     first.clear();
     last.clear();
-    sum_n.clear();
-    sum_s.clear();
-    sum_nn.clear();
-    sum_ss.clear();
-    sum_m.clear();
-    n_0.clear();
-    s_0.clear();
-    n_p.clear();
-    s_p.clear();
-    C_rho_r.clear();
-    C_sigma_r.clear();
-    mean_m.clear();
+    ns_q.clear();
+    C_rho_q.clear();
+    C_sigma_q.clear();
+    cos_q_S.clear();
+    sin_q_S.clear();
 }
 
 void mc :: do_update() {
@@ -820,109 +808,112 @@ void mc :: do_measurement() {
     measure.add("Energy", energy);
 
     // generate imaginary times and sort
-    tau.resize(n);
-    for (uint p = 0; p < n; ++p) {
-        tau[p] = random01()*0.5/T;
+    double omega_mats = 2*M_PI * T * matsubara;
+    tau.resize(n+2);
+    tau[0] = 0;
+    for (uint p = 1; p <= n; ++p) {
+        tau[p] = random01()/T;
     }
+    tau[n+1] = 1./T;
     sort(tau.begin(), tau.end());
 
     // calculate dynamical correlation functions
-    fill(sum_m.begin(), sum_m.end(), 0);
     current_state = state;
-    current_occ = occ;
-    uint p = 0, l = (int)ceil(tau[n-1] * N_tau * 2. * T) % N_tau;
+    uint p = 0;
+    vector<fourier_mode>::iterator qit;
     for (uint j = 0; j < L; ++j) {
-        n_0[j] = number_of_electrons(current_state[j]);
-        s_0[j] = local_magnetization(current_state[j]);
+        double n_j = number_of_electrons(state[j]);
+        double s_j = local_magnetization(state[j]);
+        for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+            qit->n_q_re = n_j * qit->cos_q[j];
+            qit->n_q_im = n_j * qit->sin_q[j];
+            qit->s_q_re = s_j * qit->cos_q[j];
+            qit->s_q_im = s_j * qit->sin_q[j];
+        }
+    }
+    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+        qit->sum_n_q_re = 0;
+        qit->sum_n_q_im = 0;
+        qit->sum_s_q_re = 0;
+        qit->sum_s_q_im = 0;
     }
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == identity)
             continue;
 
-        for (uint j = 0; j < L; ++j) {
-            n_p[j] = number_of_electrons(current_state[j]);
-            s_p[j] = local_magnetization(current_state[j]);
-            sum_m[j] += current_occ[j];
-        }
-
-        for (uint r = 0; r < L; ++r) {
-            sum_nn[r] = 0;
-            sum_ss[r] = 0;
-            for (uint j = 0; j < L; ++j) {
-                sum_nn[r] += n_p[(j+r)%L] * n_0[j];
-                sum_ss[r] += s_p[(j+r)%L] * s_0[j];
-            }
-        }
-
-        // Assign correlation to all imaginary times between tau_(p-1)
-        // and tau_p
-        for (;  0.5*l/T/N_tau < tau[p]
-             || (p == 0  && 0.5*l/T/N_tau > tau[n-1]); l = (l+1)%N_tau) {
-            for (uint r = 0; r < L; ++r) {
-                C_rho_r[N_tau*r+l] = 1. * sum_nn[r] / L;
-                C_sigma_r[N_tau*r+l] = 1. * sum_ss[r] / L;
-            }
+        double mats_cos = cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]);
+        double mats_sin =-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]);
+        for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+            qit->sum_n_q_re += qit->n_q_re * mats_cos - qit->n_q_im * mats_sin;
+            qit->sum_n_q_im += qit->n_q_re * mats_sin + qit->n_q_im * mats_cos;
+            qit->sum_s_q_re += qit->s_q_re * mats_cos - qit->s_q_im * mats_sin;
+            qit->sum_s_q_im += qit->s_q_re * mats_sin + qit->s_q_im * mats_cos;
         }
 
         bond_operator b = sm[i];
         // propagation of state
+        int from, to;
         switch (b.type) {
             case up_hopping:
                 current_state[LEFT_SITE(b.bond)] =
                     flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+                to = (current_state[LEFT_SITE(b.bond)] & up)
+                            ? LEFT_SITE(b.bond) : RIGHT_SITE(b.bond);
+                from = (current_state[LEFT_SITE(b.bond)] & up)
+                            ? RIGHT_SITE(b.bond) : LEFT_SITE(b.bond);
+                for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+                    qit->n_q_re += qit->cos_q[to] - qit->cos_q[from];
+                    qit->n_q_im += qit->sin_q[to] - qit->sin_q[from];
+                    qit->s_q_re += qit->cos_q[to] - qit->cos_q[from];
+                    qit->s_q_im += qit->sin_q[to] - qit->sin_q[from];
+                }
                 break;
             case down_hopping:
                 current_state[LEFT_SITE(b.bond)] =
                     flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
                 current_state[RIGHT_SITE(b.bond)] =
                     flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
-                break;
-            case creator_left:
-                current_occ[LEFT_SITE(b.bond)]++;
-                break;
-            case creator_right:
-                current_occ[RIGHT_SITE(b.bond)]++;
-                break;
-            case annihilator_left:
-                current_occ[LEFT_SITE(b.bond)]--;
-                break;
-            case annihilator_right:
-                current_occ[RIGHT_SITE(b.bond)]--;
+                to = (current_state[LEFT_SITE(b.bond)] & down)
+                            ? LEFT_SITE(b.bond) : RIGHT_SITE(b.bond);
+                from = (current_state[LEFT_SITE(b.bond)] & down)
+                            ? RIGHT_SITE(b.bond) : LEFT_SITE(b.bond);
+                for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+                    qit->n_q_re += qit->cos_q[to] - qit->cos_q[from];
+                    qit->n_q_im += qit->sin_q[to] - qit->sin_q[from];
+                    qit->s_q_re -= qit->cos_q[to] - qit->cos_q[from];
+                    qit->s_q_im -= qit->sin_q[to] - qit->sin_q[from];
+                }
                 break;
         }
         ++p;
     }
-
-    // accumulate ms
-    for (uint r = 1; r < L; ++r) {
-        mean_m[r] += mean_m[r-1];
+    // final p = n term
+    double mats_cos = cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]);
+    double mats_sin =-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]);
+    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+        qit->sum_n_q_re += qit->n_q_re * mats_cos - qit->n_q_im * mats_sin;
+        qit->sum_n_q_im += qit->n_q_re * mats_sin + qit->n_q_im * mats_cos;
+        qit->sum_s_q_re += qit->s_q_re * mats_cos - qit->s_q_im * mats_sin;
+        qit->sum_s_q_im += qit->s_q_re * mats_sin + qit->s_q_im * mats_cos;
     }
 
-    // Fourier transform
-    double S_rho_q = 0.0;
-    double S_sigma_q = 0.0;
-    double chi_rho_q = 0.0;
-    double chi_sigma_q = 0.0;
-    for (uint s = 0; s < L; ++s) {
-        S_rho_q += cos_q_S[s] * C_rho_r[N_tau*s];
-        S_sigma_q += cos_q_S[s] * C_sigma_r[N_tau*s];
-        for (uint l = 0; l < N_tau; ++l) {
-            chi_rho_q += cos_q_chi[s] * C_rho_r[N_tau*s+l];
-            chi_sigma_q += cos_q_chi[s] * C_sigma_r[N_tau*s+l];
-        }
+    // collect data
+    vector<double>::iterator C_rho_it, C_sigma_it;
+    for (qit = ns_q.begin(), C_rho_it = C_rho_q.begin(),
+            C_sigma_it = C_sigma_q.begin(); qit != ns_q.end();
+            ++qit, ++C_rho_it, ++C_sigma_it) {
+        *C_rho_it = T/omega_mats/omega_mats
+                    * (qit->sum_n_q_re * qit->sum_n_q_re
+                       + qit->sum_n_q_im * qit->sum_n_q_im);
+        *C_sigma_it = T/omega_mats/omega_mats
+                    * (qit->sum_s_q_re * qit->sum_s_q_re
+                       + qit->sum_s_q_im * qit->sum_s_q_im);
     }
-    chi_rho_q *= 1./T/N_tau;
-    chi_sigma_q *= 1./T/N_tau;
 
-    measure.add("S_rho_q", S_rho_q);
-    measure.add("S_sigma_q", S_sigma_q);
-    measure.add("chi_rho_q", chi_rho_q);
-    measure.add("chi_sigma_q", chi_sigma_q);
-    measure.add("ph_density", 1./L*mean_m[L-1]);
-    measure.add("C_rho_r", C_rho_r);
-    measure.add("C_sigma_r", C_sigma_r);
+    measure.add("C_rho_q", C_rho_q);
+    measure.add("C_sigma_q", C_sigma_q);
 }
 
 
@@ -1003,13 +994,8 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_observable("S_rho_q");
-    measure.add_observable("S_sigma_q");
-    measure.add_observable("chi_rho_q");
-    measure.add_observable("chi_sigma_q");
-    measure.add_observable("ph_density");
-    measure.add_vectorobservable("C_rho_r", L*N_tau);
-    measure.add_vectorobservable("C_sigma_r", L*N_tau);
+    measure.add_vectorobservable("C_rho_q", qvec.size());
+    measure.add_vectorobservable("C_sigma_q", qvec.size());
 }
 
 void mc :: write(string dir) {
