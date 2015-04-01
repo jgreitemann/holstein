@@ -841,8 +841,12 @@ void mc :: do_measurement() {
         if (sm[i] == identity)
             continue;
 
-        double mats_cos = cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]);
-        double mats_sin =-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]);
+        double mats_cos = matsubara
+            ? (cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]))
+            : (tau[p+1] - tau[p]);
+        double mats_sin = matsubara
+            ? (-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]))
+            : 0;
         for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
             qit->sum_n_q_re += qit->n_q_re * mats_cos - qit->n_q_im * mats_sin;
             qit->sum_n_q_im += qit->n_q_re * mats_sin + qit->n_q_im * mats_cos;
@@ -890,8 +894,12 @@ void mc :: do_measurement() {
         ++p;
     }
     // final p = n term
-    double mats_cos = cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]);
-    double mats_sin =-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]);
+    double mats_cos = matsubara
+        ? (cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]))
+        : (tau[p+1] - tau[p]);
+    double mats_sin = matsubara
+        ? (-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]))
+        : 0;
     for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
         qit->sum_n_q_re += qit->n_q_re * mats_cos - qit->n_q_im * mats_sin;
         qit->sum_n_q_im += qit->n_q_re * mats_sin + qit->n_q_im * mats_cos;
@@ -901,15 +909,16 @@ void mc :: do_measurement() {
 
     // collect data
     vector<double>::iterator C_rho_it, C_sigma_it;
+    double prefactor = T/(matsubara ? omega_mats/omega_mats : 1);
     for (qit = ns_q.begin(), C_rho_it = C_rho_q.begin(),
             C_sigma_it = C_sigma_q.begin(); qit != ns_q.end();
             ++qit, ++C_rho_it, ++C_sigma_it) {
-        *C_rho_it = T/omega_mats/omega_mats
+        *C_rho_it = prefactor
                     * (qit->sum_n_q_re * qit->sum_n_q_re
                        + qit->sum_n_q_im * qit->sum_n_q_im);
-        *C_sigma_it = T/omega_mats/omega_mats
-                    * (qit->sum_s_q_re * qit->sum_s_q_re
-                       + qit->sum_s_q_im * qit->sum_s_q_im);
+        *C_sigma_it = prefactor
+                      * (qit->sum_s_q_re * qit->sum_s_q_re
+                         + qit->sum_s_q_im * qit->sum_s_q_im);
     }
 
     measure.add("C_rho_q", C_rho_q);
