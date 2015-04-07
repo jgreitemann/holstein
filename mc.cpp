@@ -821,14 +821,18 @@ void mc :: do_measurement() {
     current_state = state;
     uint p = 0;
     vector<fourier_mode>::iterator qit;
-    for (uint j = 0; j < L; ++j) {
-        double n_j = number_of_electrons(state[j]);
-        double s_j = local_magnetization(state[j]);
-        for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
-            qit->n_q_re = n_j * qit->cos_q[j];
-            qit->n_q_im = n_j * qit->sin_q[j];
-            qit->s_q_re = s_j * qit->cos_q[j];
-            qit->s_q_im = s_j * qit->sin_q[j];
+    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+        qit->sum_n_q_re = 0.;
+        qit->sum_n_q_im = 0.;
+        qit->sum_s_q_re = 0.;
+        qit->sum_s_q_im = 0.;
+        for (uint j = 0; j < L; ++j) {
+            double n_j = number_of_electrons(state[j]);
+            double s_j = local_magnetization(state[j]);
+            qit->n_q_re += n_j * qit->cos_q[j];
+            qit->n_q_im += n_j * qit->sin_q[j];
+            qit->s_q_re += s_j * qit->cos_q[j];
+            qit->s_q_im += s_j * qit->sin_q[j];
         }
     }
     for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
