@@ -822,6 +822,10 @@ void mc :: do_measurement() {
     uint p = 0;
     vector<fourier_mode>::iterator qit;
     for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+        qit->n_q_re = 0.;
+        qit->n_q_im = 0.;
+        qit->s_q_re = 0.;
+        qit->s_q_im = 0.;
         qit->sum_n_q_re = 0.;
         qit->sum_n_q_im = 0.;
         qit->sum_s_q_re = 0.;
@@ -834,12 +838,6 @@ void mc :: do_measurement() {
             qit->s_q_re += s_j * qit->cos_q[j];
             qit->s_q_im += s_j * qit->sin_q[j];
         }
-    }
-    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
-        qit->sum_n_q_re = 0;
-        qit->sum_n_q_im = 0;
-        qit->sum_s_q_re = 0;
-        qit->sum_s_q_im = 0;
     }
     for (uint i = 0; p < n; ++i) {
         if (sm[i] == identity)
