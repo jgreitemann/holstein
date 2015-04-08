@@ -911,7 +911,7 @@ void mc :: do_measurement() {
 
     // collect data
     vector<double>::iterator C_rho_it, C_sigma_it;
-    double prefactor = T/(matsubara ? omega_mats/omega_mats : 1);
+    double prefactor = T/(matsubara ? omega_mats*omega_mats : 1);
     for (qit = ns_q.begin(), C_rho_it = C_rho_q.begin(),
             C_sigma_it = C_sigma_q.begin(); qit != ns_q.end();
             ++qit, ++C_rho_it, ++C_sigma_it) {

@@ -239,6 +239,7 @@ template class vector<bond_operator>;
 template class vector<lock_flag>;
 template class vector<list_position>;
 template class vector<operator_type>;
+template class vector<fourier_mode>;
 #endif
 
 class mc {
