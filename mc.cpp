@@ -41,7 +41,7 @@ mc :: mc (string dir) {
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
-    qvec = param.return_vector<double>("@Q");
+    vector<int> qvec = param.return_vector<int>("@Q");
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
@@ -79,10 +79,10 @@ mc :: mc (string dir) {
     sin_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
-    vector<double>::iterator qit;
+    vector<int>::iterator qit;
     fourier_mode mode;
     for (qit = qvec.begin(); qit != qvec.end(); ++qit) {
-        mode.q = *qit;
+        mode.q = *qit * (2*M_PI/L);
         mode.cos_q.resize(L);
         mode.sin_q.resize(L);
         for (uint j = 0; j < L; ++j) {
@@ -1005,8 +1005,8 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_vectorobservable("C_rho_q", qvec.size());
-    measure.add_vectorobservable("C_sigma_q", qvec.size());
+    measure.add_vectorobservable("C_rho_q", ns_q.size());
+    measure.add_vectorobservable("C_sigma_q", ns_q.size());
 }
 
 void mc :: write(string dir) {

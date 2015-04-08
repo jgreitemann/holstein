@@ -258,7 +258,6 @@ private:
     double delta;
     double epsilon;
     double q_S;
-    vector<double> qvec;
     int matsubara;
     uint therm, total_therm;
     vector<el_state> state;
