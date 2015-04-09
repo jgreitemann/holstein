@@ -280,6 +280,7 @@ private:
     int mu_adjust_therm;
     int mu_adjust_sweep;
     int mu_index;
+    bool calc_dyn;
 
     // vertex/assignment classification
     vector<assignment_role> role;

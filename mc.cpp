@@ -28,6 +28,7 @@ void bubble_sort_perm (int *a, int *p, uint k) {
 }
 
 mc :: mc (string dir) {
+    vector<int> qvec;
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
@@ -41,7 +42,9 @@ mc :: mc (string dir) {
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
-    vector<int> qvec = param.return_vector<int>("@Q");
+    calc_dyn = param.value_or_default<int>("DYNAMICAL_CORRELATIONS", 1);
+    if (calc_dyn)
+        qvec = param.return_vector<int>("@Q");
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
@@ -79,17 +82,19 @@ mc :: mc (string dir) {
     sin_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
-    vector<int>::iterator qit;
-    fourier_mode mode;
-    for (qit = qvec.begin(); qit != qvec.end(); ++qit) {
-        mode.q = *qit * (2*M_PI/L);
-        mode.cos_q.resize(L);
-        mode.sin_q.resize(L);
-        for (uint j = 0; j < L; ++j) {
-            mode.cos_q[j] = cos(mode.q*j);
-            mode.sin_q[j] = sin(mode.q*j);
+    if (calc_dyn) {
+        vector<int>::iterator qit;
+        fourier_mode mode;
+        for (qit = qvec.begin(); qit != qvec.end(); ++qit) {
+            mode.q = *qit * (2*M_PI/L);
+            mode.cos_q.resize(L);
+            mode.sin_q.resize(L);
+            for (uint j = 0; j < L; ++j) {
+                mode.cos_q[j] = cos(mode.q*j);
+                mode.sin_q[j] = sin(mode.q*j);
+            }
+            ns_q.push_back(mode);
         }
-        ns_q.push_back(mode);
     }
 }
 
@@ -807,6 +812,9 @@ void mc :: do_measurement() {
     // add data to measurement
     measure.add("Energy", energy);
 
+    if (!calc_dyn)
+        return;
+
     // generate imaginary times and sort
     double omega_mats = 2*M_PI * T * matsubara;
     tau.resize(n+2);
@@ -1005,8 +1013,10 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-    measure.add_vectorobservable("C_rho_q", ns_q.size());
-    measure.add_vectorobservable("C_sigma_q", ns_q.size());
+    if (calc_dyn) {
+        measure.add_vectorobservable("C_rho_q", ns_q.size());
+        measure.add_vectorobservable("C_sigma_q", ns_q.size());
+    }
 }
 
 void mc :: write(string dir) {
