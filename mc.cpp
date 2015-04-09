@@ -27,6 +27,7 @@ void bubble_sort_perm (int *a, int *p, uint k) {
 }
 
 mc :: mc (string dir) {
+    vector<int> qvec;
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
@@ -40,6 +41,10 @@ mc :: mc (string dir) {
     g = param.value_or_default<double>("G", 0.);
     mu = param.value_or_default<double>("MU", g*g/omega);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
+    calc_dyn = param.value_or_default<int>("DYNAMICAL_CORRELATIONS", 1);
+    if (calc_dyn)
+        qvec = param.return_vector<int>("@Q");
+    matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -66,11 +71,27 @@ mc :: mc (string dir) {
     S_sigma_r.resize(L);
     n_p.resize(L);
     s_p.resize(L);
+    C_rho_q.resize(qvec.size());
+    C_sigma_q.resize(qvec.size());
     cos_q_S.resize(L);
 
     // calculate trigonometric factors for Fourier transforms
-    for (uint s = 0; s < L; ++s) {
+    for (uint s = 0; s < L; ++s)
         cos_q_S[s] = cos(q_S*s);
+
+    if (calc_dyn) {
+        vector<int>::iterator qit;
+        fourier_mode mode;
+        for (qit = qvec.begin(); qit != qvec.end(); ++qit) {
+            mode.q = *qit * (2*M_PI/L);
+            mode.cos_q.resize(L);
+            mode.sin_q.resize(L);
+            for (uint j = 0; j < L; ++j) {
+                mode.cos_q[j] = cos(mode.q*j);
+                mode.sin_q[j] = sin(mode.q*j);
+            }
+            ns_q.push_back(mode);
+        }
     }
 }
 
@@ -210,8 +231,11 @@ mc :: ~mc() {
     last.clear();
     S_rho_r.clear();
     S_sigma_r.clear();
+    C_rho_q.clear();
+    C_sigma_q.clear();
     n_p.clear();
     s_p.clear();
+    ns_q.clear();
     cos_q_S.clear();
 }
 
@@ -825,7 +849,7 @@ void mc :: do_measurement() {
     // add data to measurement
     measure.add("Energy", energy);
 
-    // calculate real space correlation functions (at p = 0)
+    // calculate equal-time real space correlation functions (at p = 0)
     int n_staggered = 0, s_staggered = 0;
     int m = 0;
     for (uint j = 0; j < L; ++j) {
@@ -861,22 +885,78 @@ void mc :: do_measurement() {
     measure.add("S_rho_q", S_rho_q);
     measure.add("S_sigma_q", S_sigma_q);
 
-    // calculate staggered susceptibilities - traverse the operator string
+    double omega_mats;
+    if (calc_dyn) {
+        // generate imaginary times and sort
+        omega_mats = 2*M_PI * T * matsubara;
+        tau.resize(n+2);
+        tau[0] = 0;
+        for (uint p = 1; p <= n; ++p) {
+            tau[p] = random01()/T;
+        }
+        tau[n+1] = 1./T;
+        sort(tau.begin(), tau.end());
+
+        // initialize dynamical correlation functions
+        vector<fourier_mode>::iterator qit;
+        for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+            qit->n_q_re = 0.;
+            qit->n_q_im = 0.;
+            qit->s_q_re = 0.;
+            qit->s_q_im = 0.;
+            qit->sum_n_q_re = 0.;
+            qit->sum_n_q_im = 0.;
+            qit->sum_s_q_re = 0.;
+            qit->sum_s_q_im = 0.;
+            for (uint j = 0; j < L; ++j) {
+                double n_j = number_of_electrons(state[j]);
+                double s_j = local_magnetization(state[j]);
+                qit->n_q_re += n_j * qit->cos_q[j];
+                qit->n_q_im += n_j * qit->sin_q[j];
+                qit->s_q_re += s_j * qit->cos_q[j];
+                qit->s_q_im += s_j * qit->sin_q[j];
+            }
+        }
+    }
+
+    // initialize staggered susceptibilities 
     current_state = state;
     uint p = 0;
     int sum_n_staggered = 0, sum_n_staggered_sq = n_staggered * n_staggered;
     int sum_s_staggered = 0, sum_s_staggered_sq = s_staggered * s_staggered;
+    
+    // traverse the operator string
     for (uint i = 0; p < n; ++i) {
         // fast-forward to next proper operator
         if (sm[i] == identity)
             continue;
+        
         // sample staggered density & spin & their squares
         sum_n_staggered += n_staggered;
         sum_n_staggered_sq += n_staggered * n_staggered;
         sum_s_staggered += s_staggered;
         sum_s_staggered_sq += s_staggered * s_staggered;
+        
+        if (calc_dyn) {
+            // sample dynamical correlations
+            double mats_cos = matsubara
+                ? (cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]))
+                : (tau[p+1] - tau[p]);
+            double mats_sin = matsubara
+                ? (-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]))
+                : 0;
+            vector<fourier_mode>::iterator qit;
+            for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+                qit->sum_n_q_re += qit->n_q_re*mats_cos - qit->n_q_im*mats_sin;
+                qit->sum_n_q_im += qit->n_q_re*mats_sin + qit->n_q_im*mats_cos;
+                qit->sum_s_q_re += qit->s_q_re*mats_cos - qit->s_q_im*mats_sin;
+                qit->sum_s_q_im += qit->s_q_re*mats_sin + qit->s_q_im*mats_cos;
+            }
+        }
+
         // imaginary time propagation of state
         bond_operator b = sm[i];
+        int from, to;
         switch (b.type) {
             case up_hopping:
                 current_state[LEFT_SITE(b.bond)] =
@@ -898,6 +978,19 @@ void mc :: do_measurement() {
                     } else {
                         n_staggered += 2;
                         s_staggered += 2;
+                    }
+                }
+                if (calc_dyn) {
+                    to = (current_state[LEFT_SITE(b.bond)] & up)
+                                ? LEFT_SITE(b.bond) : RIGHT_SITE(b.bond);
+                    from = (current_state[LEFT_SITE(b.bond)] & up)
+                                ? RIGHT_SITE(b.bond) : LEFT_SITE(b.bond);
+                    vector<fourier_mode>::iterator qit;
+                    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+                        qit->n_q_re += qit->cos_q[to] - qit->cos_q[from];
+                        qit->n_q_im += qit->sin_q[to] - qit->sin_q[from];
+                        qit->s_q_re += qit->cos_q[to] - qit->cos_q[from];
+                        qit->s_q_im += qit->sin_q[to] - qit->sin_q[from];
                     }
                 }
                 break;
@@ -923,10 +1016,24 @@ void mc :: do_measurement() {
                         s_staggered -= 2;
                     }
                 }
+                if (calc_dyn) {
+                    to = (current_state[LEFT_SITE(b.bond)] & down)
+                                ? LEFT_SITE(b.bond) : RIGHT_SITE(b.bond);
+                    from = (current_state[LEFT_SITE(b.bond)] & down)
+                                ? RIGHT_SITE(b.bond) : LEFT_SITE(b.bond);
+                    vector<fourier_mode>::iterator qit;
+                    for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+                        qit->n_q_re += qit->cos_q[to] - qit->cos_q[from];
+                        qit->n_q_im += qit->sin_q[to] - qit->sin_q[from];
+                        qit->s_q_re -= qit->cos_q[to] - qit->cos_q[from];
+                        qit->s_q_im -= qit->sin_q[to] - qit->sin_q[from];
+                    }
+                }
                 break;
         }
         ++p;
     }
+    
     // cf. [DT01]
     double chi_rho_pi = 1./T/L * (1./n/(n+1) * sum_n_staggered * sum_n_staggered
                                   + 1./(n+1)/(n+1) * sum_n_staggered_sq);
@@ -935,9 +1042,44 @@ void mc :: do_measurement() {
     measure.add("chi_rho_pi", chi_rho_pi);
     measure.add("chi_sigma_pi", chi_sigma_pi);
 
-    // measure real space correlations
+    // measure equal-time real space correlations
     measure.add("S_rho_r", S_rho_r);
     measure.add("S_sigma_r", S_sigma_r);
+
+    // measure dynamical correlations
+    if (calc_dyn) {
+        // final p = n term
+        double mats_cos = matsubara
+            ? (cos(omega_mats * tau[p+1]) - cos(omega_mats * tau[p]))
+            : (tau[p+1] - tau[p]);
+        double mats_sin = matsubara
+            ? (-sin(omega_mats * tau[p+1]) + sin(omega_mats * tau[p]))
+            : 0;
+        vector<fourier_mode>::iterator qit;
+        for (qit = ns_q.begin(); qit != ns_q.end(); ++qit) {
+            qit->sum_n_q_re += qit->n_q_re * mats_cos - qit->n_q_im * mats_sin;
+            qit->sum_n_q_im += qit->n_q_re * mats_sin + qit->n_q_im * mats_cos;
+            qit->sum_s_q_re += qit->s_q_re * mats_cos - qit->s_q_im * mats_sin;
+            qit->sum_s_q_im += qit->s_q_re * mats_sin + qit->s_q_im * mats_cos;
+        }
+
+        // collect data
+        vector<double>::iterator C_rho_it, C_sigma_it;
+        double prefactor = T/(matsubara ? omega_mats*omega_mats : 1);
+        for (qit = ns_q.begin(), C_rho_it = C_rho_q.begin(),
+                C_sigma_it = C_sigma_q.begin(); qit != ns_q.end();
+                ++qit, ++C_rho_it, ++C_sigma_it) {
+            *C_rho_it = prefactor
+                        * (qit->sum_n_q_re * qit->sum_n_q_re
+                           + qit->sum_n_q_im * qit->sum_n_q_im);
+            *C_sigma_it = prefactor
+                          * (qit->sum_s_q_re * qit->sum_s_q_re
+                             + qit->sum_s_q_im * qit->sum_s_q_im);
+        }
+
+        measure.add("C_rho_q", C_rho_q);
+        measure.add("C_sigma_q", C_sigma_q);
+    }
 }
 
 
@@ -1018,6 +1160,10 @@ void mc :: init() {
     measure.add_observable("chi_sigma_pi");
     measure.add_vectorobservable("S_rho_r", L);
     measure.add_vectorobservable("S_sigma_r", L);
+    if (calc_dyn) {
+        measure.add_vectorobservable("C_rho_q", ns_q.size());
+        measure.add_vectorobservable("C_sigma_q", ns_q.size());
+    }
 }
 
 void mc :: write(string dir) {

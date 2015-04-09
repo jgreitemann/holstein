@@ -245,6 +245,20 @@ union list_position {
 
 const list_position invalid_pos = list_position(bottom_left, -1);
 
+struct fourier_mode {
+    double q;
+    double n_q_re;
+    double n_q_im;
+    double s_q_re;
+    double s_q_im;
+    double sum_n_q_re;
+    double sum_n_q_im;
+    double sum_s_q_re;
+    double sum_s_q_im;
+    vector<double> cos_q;
+    vector<double> sin_q;
+};
+
 #ifndef NDEBUG
 template class vector<int>;
 template class vector<double>;
@@ -253,12 +267,14 @@ template class vector<bond_operator>;
 template class vector<lock_flag>;
 template class vector<list_position>;
 template class vector<operator_type>;
+template class vector<fourier_mode>;
 #endif
 
 class mc {
 private:
     uint M;
     uint Np;
+    uint N_tau;
     uint L;
     double T;
     uint N_el_up, N_el_down;
@@ -270,6 +286,7 @@ private:
     double delta;
     double epsilon;
     double q_S;
+    int matsubara;
     uint therm;
     vector<el_state> state;
     vector<int> occ;
@@ -291,6 +308,7 @@ private:
     double mu_adjust_range;
     double mu_adjust_tol;
     thermalization_state therm_state;
+    bool calc_dyn;
 
     // vertex/assignment classification
     vector<assignment_role> role;
@@ -309,8 +327,11 @@ private:
     vector<list_position> first;
     vector<list_position> last;
     vector<double> S_rho_r, S_sigma_r;
+    vector<double> C_rho_q, C_sigma_q;
+    vector<double> tau;
     vector<int> n_p, s_p;
     vector<double> cos_q_S;
+    vector<fourier_mode> ns_q;
     double lower_mu, upper_mu;
     double lower_N, upper_N;
     int N_mu;
