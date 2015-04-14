@@ -31,7 +31,7 @@ mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
-    T = param.value_or_default<double>("T", .05);
+    beta = param.value_or_default<double>("BETA", L);
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
@@ -345,13 +345,13 @@ void mc :: do_update() {
             b.type = electron_diag;
             b.bond = random0N(NB)+1;
             vertex vtx = diag_vertex_at_bond(current_state, b.bond);
-            if (random01() < NB/T*weight[vtx.int_repr]/(M-n)) {
+            if (random01() < NB*beta*weight[vtx.int_repr]/(M-n)) {
                 sm[i] = b;
                 n++;
             }
         } else if (sm[i].type == electron_diag) {
             vertex vtx = diag_vertex_at_bond(current_state, sm[i].bond);
-            if (random01() < (M-n+1)/(NB/T*weight[vtx.int_repr])) {
+            if (random01() < (M-n+1)/(NB*beta*weight[vtx.int_repr])) {
                 sm[i] = identity;
                 n--;
             }
@@ -363,13 +363,13 @@ void mc :: do_update() {
             b.type = phonon_diag;
             b.bond = random0N(NB)+1;
             int cocc = current_occ[LEFT_SITE(b.bond)];
-            if (random01() < NB/T*omega*(Np-cocc)/(M-n)) {
+            if (random01() < NB*beta*omega*(Np-cocc)/(M-n)) {
                 sm[i] = b;
                 n++;
             }
         } else if (sm[i].type == phonon_diag) {
             int cocc = current_occ[LEFT_SITE(sm[i].bond)];
-            if (random01() < (M-n+1)/(NB/T*omega*(Np-cocc))) {
+            if (random01() < (M-n+1)/(NB*beta*omega*(Np-cocc))) {
                 sm[i] = identity;
                 n--;
             }
@@ -845,7 +845,7 @@ void mc :: do_measurement() {
         return;
 
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
-    double energy = -T * n + NB*(C+delta+epsilon) + L*omega*Np;
+    double energy = -1./beta*n + NB*(C+delta+epsilon) + L*omega*Np;
 
     // add data to measurement
     measure.add("Energy", energy);
@@ -889,13 +889,13 @@ void mc :: do_measurement() {
     double omega_mats;
     if (calc_dyn) {
         // generate imaginary times and sort
-        omega_mats = 2*M_PI * T * matsubara;
+        omega_mats = 2*M_PI / beta * matsubara;
         tau.resize(n+2);
         tau[0] = 0;
         for (uint p = 1; p <= n; ++p) {
-            tau[p] = random01()/T;
+            tau[p] = random01() * beta;
         }
-        tau[n+1] = 1./T;
+        tau[n+1] = beta;
         sort(tau.begin(), tau.end());
 
         // initialize dynamical correlation functions
@@ -1036,9 +1036,9 @@ void mc :: do_measurement() {
     }
     
     // cf. [DT01]
-    double chi_rho_pi = 1./T/L * (1./n/(n+1) * sum_n_staggered * sum_n_staggered
+    double chi_rho_pi = beta/L * (1./n/(n+1) * sum_n_staggered * sum_n_staggered
                                   + 1./(n+1)/(n+1) * sum_n_staggered_sq);
-    double chi_sigma_pi = 1./T/L * (1./n/(n+1) * sum_s_staggered * sum_s_staggered
+    double chi_sigma_pi = beta/L * (1./n/(n+1) * sum_s_staggered * sum_s_staggered
                                     + 1./(n+1)/(n+1) * sum_s_staggered_sq);
     measure.add("chi_rho_pi", chi_rho_pi);
     measure.add("chi_sigma_pi", chi_sigma_pi);
@@ -1066,7 +1066,7 @@ void mc :: do_measurement() {
 
         // collect data
         vector<double>::iterator C_rho_it, C_sigma_it;
-        double prefactor = T/(matsubara ? omega_mats*omega_mats : 1);
+        double prefactor = 1./beta/(matsubara ? omega_mats*omega_mats : 1);
         for (qit = ns_q.begin(), C_rho_it = C_rho_q.begin(),
                 C_sigma_it = C_sigma_q.begin(); qit != ns_q.end();
                 ++qit, ++C_rho_it, ++C_sigma_it) {

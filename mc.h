@@ -276,7 +276,7 @@ private:
     uint Np;
     uint N_tau;
     uint L;
-    double T;
+    double beta;
     uint N_el_up, N_el_down;
     double a;
     double U;
