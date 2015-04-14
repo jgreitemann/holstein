@@ -309,6 +309,7 @@ private:
     double mu_adjust_tol;
     thermalization_state therm_state;
     bool calc_dyn;
+    uint bin_length;
 
     // vertex/assignment classification
     vector<assignment_role> role;

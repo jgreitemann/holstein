@@ -42,6 +42,7 @@ mc :: mc (string dir) {
     mu = param.value_or_default<double>("MU", g*g/omega);
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     calc_dyn = param.value_or_default<int>("DYNAMICAL_CORRELATIONS", 1);
+    bin_length = param.value_or_default<int>("BINLENGTH", 1);
     if (calc_dyn)
         qvec = param.return_vector<int>("@Q");
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
@@ -1158,11 +1159,11 @@ void mc :: init() {
     measure.add_observable("S_sigma_q");
     measure.add_observable("chi_rho_pi");
     measure.add_observable("chi_sigma_pi");
-    measure.add_vectorobservable("S_rho_r", L);
-    measure.add_vectorobservable("S_sigma_r", L);
+    measure.add_vectorobservable("S_rho_r", L, bin_length);
+    measure.add_vectorobservable("S_sigma_r", L, bin_length);
     if (calc_dyn) {
-        measure.add_vectorobservable("C_rho_q", ns_q.size());
-        measure.add_vectorobservable("C_sigma_q", ns_q.size());
+        measure.add_vectorobservable("C_rho_q", ns_q.size(), bin_length);
+        measure.add_vectorobservable("C_sigma_q", ns_q.size(), bin_length);
     }
 }
 
