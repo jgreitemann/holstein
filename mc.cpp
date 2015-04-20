@@ -56,8 +56,9 @@ mc :: mc (string dir) {
     mu_adjust_therm = param.value_or_default<int>("MU_ADJUST_THERM", 5000);
     mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
     mu_adjust_tol = param.value_or_default<double>("MU_ADJUST_TOLERANCE", 0.01);
+    bool pbc = param.value_or_default<int>("PERIODIC_BOUNDARY", 1);
     assert(N_el_up <= L && N_el_down <= L);
-    assert(N_el_up % 2 == 1 && N_el_down % 2 == 1);
+    assert(N_el_up % 2 == pbc && N_el_down % 2 == pbc);
 
     // initialize vectors
     init_vertices();
