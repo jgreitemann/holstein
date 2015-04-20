@@ -792,6 +792,7 @@ void mc :: do_update() {
 
         // mapping back to operator sequence
         p = 0;
+        operator_type new_type;
         for (uint i = 0; p < n; ++i) {
             if (sm[i] == identity)
                 continue;
@@ -799,7 +800,15 @@ void mc :: do_update() {
                 case electron_diag:
                 case up_hopping:
                 case down_hopping:
-                    sm[i].type = op_type[vtx[p].int_repr];
+                    new_type = op_type[vtx[p].int_repr];
+#ifdef MEASURE_KIN_ENERGY
+                    if (sm[i].type == electron_diag && new_type != electron_diag) {
+                        n_hop += 1;
+                    } else if (sm[i].type != electron_diag && new_type == electron_diag) {
+                        n_hop -= 1;
+                    }
+#endif
+                    sm[i].type = new_type;
                     break;
             }
             ++p;
@@ -849,6 +858,9 @@ void mc :: do_measurement() {
 
     // add data to measurement
     measure.add("Energy", energy);
+#ifdef MEASURE_KIN_ENERGY
+    measure.add("kinetic_Energy", -1./beta*n_hop);
+#endif
 
     // calculate equal-time real space correlation functions (at p = 0)
     int n_staggered = 0, s_staggered = 0;
@@ -1124,6 +1136,7 @@ void mc :: init() {
     }
 
     n = 0;
+    n_hop = 0;
     M = (uint)(a * init_n_max);
     dublon_rejected = true;
     avg_worm_len = 0;
@@ -1154,6 +1167,9 @@ void mc :: init() {
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
+#ifdef MEASURE_KIN_ENERGY
+    measure.add_observable("kinetic_Energy");
+#endif
     measure.add_observable("ph_density");
     measure.add_observable("S_rho_q");
     measure.add_observable("S_sigma_q");
@@ -1175,6 +1191,7 @@ void mc :: write(string dir) {
     d.write(occ);
     d.write(sm);
     d.write(n);
+    d.write(n_hop);
     d.write(dublon_rejected);
     d.write(avg_worm_len);
     d.write(worm_len_sample_size);
@@ -1210,6 +1227,7 @@ bool mc :: read(string dir) {
         d.read(sm);
         M = sm.size();
         d.read(n);
+        d.read(n_hop);
         d.read(dublon_rejected);
         d.read(avg_worm_len);
         d.read(worm_len_sample_size);

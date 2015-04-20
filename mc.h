@@ -295,6 +295,7 @@ private:
     uint init_n_max;
     uint loop_term;
     uint n;
+    uint n_hop;
     double vtx_visited;
     uint N_loop;
     bool dublon_rejected;
