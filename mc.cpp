@@ -854,7 +854,8 @@ void mc :: do_measurement() {
         return;
 
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
-    double energy = -1./beta*n + NB*(C+delta+epsilon) + L*omega*Np;
+    double energy = -1./beta*n + NB*(C+delta+epsilon) + L*omega*Np
+                    + 2*mu*(L-N_el_up-N_el_down);
 
     // add data to measurement
     measure.add("Energy", energy);
