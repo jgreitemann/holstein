@@ -477,42 +477,24 @@ void mc :: do_update() {
                     double prob = g*g * i1->m / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m), i1->Nd);
                     if (random01() < prob) {
-                        int type = random0N(4);
-                        if (type / 2) { // H_5^R
-                            sm[i1->i].type = annihilator_right;
-                            sm[i1->i].bond = LEFT_BOND(s);
-                        } else { // H_5^L
-                            sm[i1->i].type = annihilator_left;
-                            sm[i1->i].bond = RIGHT_BOND(s);
-                        }
-                        if (type % 2) { // H_4^R
-                            sm[i2->i].type = creator_right;
-                            sm[i2->i].bond = LEFT_BOND(s);
-                        } else { // H_4^L
-                            sm[i2->i].type = creator_left;
-                            sm[i2->i].bond = RIGHT_BOND(s);
-                        }
+                        sm[i1->i].type = sm[i1->i].bond == LEFT_BOND(s)
+                                         ? annihilator_right
+                                         : annihilator_left;
+                        sm[i2->i].type = sm[i2->i].bond == LEFT_BOND(s)
+                                         ? creator_right
+                                         : creator_left;
                         --(i2->m);
                     }
                 } else { // (H_1, H_1) -> (H_4, H_5)
                     double prob = g*g * (i1->m+1) / (i1->r*i2->r)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m), i1->Nd);
                     if (i1->m < Np && random01() < prob) {
-                        int type = random0N(4);
-                        if (type / 2) { // H_4^R
-                            sm[i1->i].type = creator_right;
-                            sm[i1->i].bond = LEFT_BOND(s);
-                        } else { // H_4^L
-                            sm[i1->i].type = creator_left;
-                            sm[i1->i].bond = RIGHT_BOND(s);
-                        }
-                        if (type % 2) { // H_5^R
-                            sm[i2->i].type = annihilator_right;
-                            sm[i2->i].bond = LEFT_BOND(s);
-                        } else { // H_5^L
-                            sm[i2->i].type = annihilator_left;
-                            sm[i2->i].bond = RIGHT_BOND(s);
-                        }
+                        sm[i1->i].type = sm[i1->i].bond == LEFT_BOND(s)
+                                         ? creator_right
+                                         : creator_left;
+                        sm[i2->i].type = sm[i2->i].bond == LEFT_BOND(s)
+                                         ? annihilator_right
+                                         : annihilator_left;
                         ++(i2->m);
                     }
                 }
@@ -524,21 +506,12 @@ void mc :: do_update() {
                     double prob = 1. * (i1->m) / (i1->m+1)
                                   * pow(1.*(Np-i1->m+1)/(Np-i1->m-1), i1->Nd);
                     if (random01() < prob) {
-                        int type = random0N(4);
-                        if (type / 2) { // H_5^R
-                            sm[i1->i].type = annihilator_right;
-                            sm[i1->i].bond = LEFT_BOND(s);
-                        } else { // H_5^L
-                            sm[i1->i].type = annihilator_left;
-                            sm[i1->i].bond = RIGHT_BOND(s);
-                        }
-                        if (type % 2) { // H_4^R
-                            sm[i2->i].type = creator_right;
-                            sm[i2->i].bond = LEFT_BOND(s);
-                        } else { // H_4^L
-                            sm[i2->i].type = creator_left;
-                            sm[i2->i].bond = RIGHT_BOND(s);
-                        }
+                        sm[i1->i].type = sm[i1->i].type == creator_right
+                                         ? annihilator_right
+                                         : annihilator_left;
+                        sm[i2->i].type = sm[i2->i].type == annihilator_right
+                                         ? creator_right
+                                         : creator_left;
                         i2->m -= 2;
                     }
                 } else { // (H_4, H_5) -> (H_1, H_1)
@@ -558,21 +531,12 @@ void mc :: do_update() {
                     double prob = 1. / (i1->m) * (i1->m+1)
                                   * pow(1.*(Np-i1->m-1)/(Np-i1->m+1), i1->Nd);
                     if (i1->m < Np && random01() < prob) {
-                        int type = random0N(4);
-                        if (type / 2) { // H_4^R
-                            sm[i1->i].type = creator_right;
-                            sm[i1->i].bond = LEFT_BOND(s);
-                        } else { // H_4^L
-                            sm[i1->i].type = creator_left;
-                            sm[i1->i].bond = RIGHT_BOND(s);
-                        }
-                        if (type % 2) { // H_5^R
-                            sm[i2->i].type = annihilator_right;
-                            sm[i2->i].bond = LEFT_BOND(s);
-                        } else { // H_5^L
-                            sm[i2->i].type = annihilator_left;
-                            sm[i2->i].bond = RIGHT_BOND(s);
-                        }
+                        sm[i1->i].type = sm[i1->i].type == annihilator_right
+                                         ? creator_right
+                                         : creator_left;
+                        sm[i2->i].type = sm[i2->i].type == creator_right
+                                         ? annihilator_right
+                                         : annihilator_left;
                         i2->m += 2;
                     }
                 } else { // (H_5, H_4) -> (H_1, H_1)
