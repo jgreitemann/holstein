@@ -308,6 +308,7 @@ private:
     int mu_adjust_sweep;
     double mu_adjust_range;
     double mu_adjust_tol;
+    bool mus_file;
     thermalization_state therm_state;
     bool calc_dyn;
     uint bin_length;

@@ -57,6 +57,7 @@ mc :: mc (string dir) {
     mu_adjust_sweep = param.value_or_default<int>("MU_ADJUST_SWEEP", 10000);
     mu_adjust_tol = param.value_or_default<double>("MU_ADJUST_TOLERANCE", 0.01);
     bool pbc = param.value_or_default<int>("PERIODIC_BOUNDARY", 1);
+    bool mus_file = param.value_or_default<int>("MUS_FILE", 1);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == pbc && N_el_down % 2 == pbc);
 
@@ -312,6 +313,8 @@ void mc :: do_update() {
         case final_stage:
             if (therm_state.sweeps == therm) {
                 therm_state.set_stage(thermalized);
+                if (!mus_file)
+                    break;
                 stringstream fname;
                 fname << "../mus/" << setprecision(4) << U << "_" << g << "_"
                       << omega << ".mu";
@@ -1110,13 +1113,15 @@ void mc :: init() {
     N_loop = vtx_visited * M;
     sm.resize(M, identity);
 
-    // read mu value from database if available
-    stringstream fname;
-    fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega
-          << ".mu";
-    ifstream fstr(fname.str().c_str());
-    if (fstr.is_open()) {
-        fstr >> mu;
+    // read mu value from database if available & desired
+    if (mus_file) {
+        stringstream fname;
+        fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega
+              << ".mu";
+        ifstream fstr(fname.str().c_str());
+        if (fstr.is_open()) {
+            fstr >> mu;
+        }
     }
 
     // set up adjustment of mu if desired
@@ -1229,7 +1234,15 @@ void mc :: write_output(string dir) {
       << "operator string max. length: " << M << endl
       << "average worm length: " << avg_worm_len << endl
       << "number of loops per MCS: " << N_loop << endl
-      << "mu = " << mu << endl;
+      << "BISECTION PROTOCOL" << endl
+      << "mu_best U g omega" << endl
+      << mu << " " << U << " " << g << " " << omega << endl
+      << endl << endl
+      << "mu N_mu" << endl
+      << mu_data.str()
+      << endl << endl
+      << "lower_mu upper_mu" << endl
+      << bisection_protocol.str();
 }
 
 void mc :: init_assignments() {
