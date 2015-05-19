@@ -243,15 +243,11 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
-    // exiting initial thermalization stage
-    if (therm_state.sweeps == therm && therm_state.stage == initial_stage) {
-        N_loop = (uint)(vtx_visited / avg_worm_len * M);
-    }
-
     // change thermalization stage as necessary
     switch (therm_state.stage) {
         case initial_stage:
             if (therm_state.sweeps == therm) {
+                N_loop = (uint)(vtx_visited / avg_worm_len * M);
                 therm_state.set_stage(mu_adjust ? lower_stage : thermalized);
                 N_mu = 0;
             }
