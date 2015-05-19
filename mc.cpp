@@ -31,7 +31,9 @@ mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
-    beta = param.value_or_default<double>("BETA", L);
+    final_beta = param.value_or_default<double>("BETA", L);
+    init_beta = param.value_or_default<double>("INIT_BETA", final_beta);
+    beta = final_beta;
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
@@ -48,6 +50,7 @@ mc :: mc (string dir) {
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
+    tempering_therm = param.value_or_default<int>("TEMPERING_THERM", 0);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 20);
@@ -246,13 +249,15 @@ void mc :: do_update() {
     // change thermalization stage as necessary
     switch (therm_state.stage) {
         case initial_stage:
+            beta = init_beta;
             if (therm_state.sweeps == therm) {
                 N_loop = (uint)(vtx_visited / avg_worm_len * M);
-                therm_state.set_stage(mu_adjust ? lower_stage : thermalized);
+                therm_state.set_stage(mu_adjust ? lower_stage : tempering_stage);
                 N_mu = 0;
             }
             break;
         case lower_stage:
+            beta = init_beta;
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 lower_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << lower_N << endl;
@@ -269,6 +274,7 @@ void mc :: do_update() {
             }
             break;
         case upper_stage:
+            beta = init_beta;
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 upper_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << upper_N << endl;
@@ -285,6 +291,7 @@ void mc :: do_update() {
             }
             break;
         case convergence_stage:
+            beta = init_beta;
             if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
                 double center_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << center_N << endl;
@@ -299,14 +306,22 @@ void mc :: do_update() {
                 if (upper_mu - lower_mu > mu_adjust_tol) {
                     therm_state.set_stage(convergence_stage);
                 } else {
-                    therm_state.set_stage(final_stage);
+                    therm_state.set_stage(tempering_stage);
                 }
                 mu = 0.5 * (lower_mu + upper_mu);
                 recalc_directed_loop_probs();
                 N_mu = 0;
             }
             break;
+        case tempering_stage:
+            beta = init_beta + (final_beta-init_beta) * therm_state.sweeps
+                    / tempering_therm;
+            if (therm_state.sweeps == tempering_therm) {
+                therm_state.set_stage(final_stage);
+            }
+            break;
         case final_stage:
+            beta = final_beta;
             if (therm_state.sweeps == therm) {
                 therm_state.set_stage(thermalized);
                 if (!mus_file)

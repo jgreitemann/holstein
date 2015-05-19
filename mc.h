@@ -97,6 +97,7 @@ enum thermalization_stage {
     lower_stage,
     upper_stage,
     convergence_stage,
+    tempering_stage,
     final_stage,
     thermalized
 };
@@ -276,7 +277,7 @@ private:
     uint Np;
     uint N_tau;
     uint L;
-    double beta;
+    double beta, init_beta, final_beta;
     uint N_el_up, N_el_down;
     double a;
     double U;
@@ -288,6 +289,7 @@ private:
     double q_S;
     int matsubara;
     uint therm;
+    uint tempering_therm;
     vector<el_state> state;
     vector<int> occ;
     vector<bond_operator> sm;
