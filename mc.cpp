@@ -61,6 +61,7 @@ mc :: mc (string dir) {
     mu_adjust_tol = param.value_or_default<double>("MU_ADJUST_TOLERANCE", 0.01);
     bool pbc = param.value_or_default<int>("PERIODIC_BOUNDARY", 1);
     bool mus_file = param.value_or_default<int>("MUS_FILE", 1);
+    thermlog_interval = param.value_or_default<int>("THERMLOG_INTERVAL", 0);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == pbc && N_el_down % 2 == pbc);
 
@@ -246,6 +247,18 @@ mc :: ~mc() {
 }
 
 void mc :: do_update() {
+    // log particle numbers during thermalization if so desired
+    if (thermlog_interval && therm_state.stage != thermalized
+            && therm_state.sweeps % thermlog_interval == 0) {
+        int N = 0;
+        for (uint s = 0; s < L; ++s) {
+            N += number_of_electrons(state[s]);
+        }
+        thermlog << therm_state.stage << " "
+                 << therm_state.sweeps << " "
+                 << N << endl;
+    }
+
     // change thermalization stage as necessary
     switch (therm_state.stage) {
         case initial_stage:
@@ -1188,6 +1201,9 @@ void mc :: write(string dir) {
         d.write(mu_data_str);
         d.write(bisection_protocol_str);
     }
+    if (thermlog_interval > 0) {
+        d.write(thermlog);
+    }
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -1225,6 +1241,9 @@ bool mc :: read(string dir) {
             d.read(bisection_protocol_str);
             bisection_protocol << bisection_protocol_str;
         }
+        if (thermlog_interval > 0) {
+            d.read(thermlog);
+        }
         d.close();
         recalc_directed_loop_probs();
         return true;
@@ -1253,7 +1272,9 @@ void mc :: write_output(string dir) {
       << mu_data.str()
       << endl << endl
       << "lower_mu upper_mu" << endl
-      << bisection_protocol.str();
+      << bisection_protocol.str() << endl
+      << "THERMLOG" << endl
+      << thermlog.str();
 }
 
 void mc :: init_assignments() {

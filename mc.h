@@ -314,6 +314,7 @@ private:
     thermalization_state therm_state;
     bool calc_dyn;
     uint bin_length;
+    uint thermlog_interval;
 
     // vertex/assignment classification
     vector<assignment_role> role;
@@ -340,7 +341,7 @@ private:
     double lower_mu, upper_mu;
     double lower_N, upper_N;
     int N_mu;
-    stringstream mu_data, bisection_protocol;
+    stringstream mu_data, bisection_protocol, thermlog;
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
