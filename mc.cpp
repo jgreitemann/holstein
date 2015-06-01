@@ -1202,7 +1202,8 @@ void mc :: write(string dir) {
         d.write(bisection_protocol_str);
     }
     if (thermlog_interval > 0) {
-        d.write(thermlog);
+        string thermlog_str(thermlog.str());
+        d.write(thermlog_str);
     }
     d.close();
     seed_write(dir + "seed");
@@ -1242,7 +1243,9 @@ bool mc :: read(string dir) {
             bisection_protocol << bisection_protocol_str;
         }
         if (thermlog_interval > 0) {
-            d.read(thermlog);
+            string thermlog_str;
+            d.read(thermlog_str);
+            thermlog << thermlog_str;
         }
         d.close();
         recalc_directed_loop_probs();
