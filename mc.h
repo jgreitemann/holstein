@@ -290,6 +290,7 @@ private:
     int matsubara;
     uint therm;
     uint tempering_therm;
+    double tempering_exp;
     vector<el_state> state;
     vector<int> occ;
     vector<bond_operator> sm;

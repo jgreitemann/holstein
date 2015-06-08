@@ -51,6 +51,7 @@ mc :: mc (string dir) {
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
     tempering_therm = param.value_or_default<int>("TEMPERING_THERM", 0);
+    tempering_exp = param.value_or_default<int>("TEMPERING_EXP", 1.);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
     vtx_visited = param.value_or_default<double>("VTX_VISITED", 2.0);
     Np = param.value_or_default<int>("N_P", 20);
@@ -314,8 +315,8 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (final_beta-init_beta) * therm_state.sweeps
-                    / tempering_therm;
+            beta = init_beta + (final_beta-init_beta) * pow(therm_state.sweeps
+                    / tempering_therm, tempering_exp);
             if (therm_state.sweeps == tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
