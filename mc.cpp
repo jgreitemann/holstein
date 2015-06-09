@@ -257,7 +257,7 @@ void mc :: do_update() {
         }
         thermlog << therm_state.stage << " "
                  << therm_state.sweeps << " "
-                 << N << ""
+                 << N << " "
                  << beta << endl;
     }
 
