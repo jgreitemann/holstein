@@ -329,8 +329,8 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (final_beta-init_beta) * pow(therm_state.sweeps
-                    / tempering_therm, tempering_exp);
+            beta = init_beta + (final_beta-init_beta)
+                   * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
             if (therm_state.sweeps == tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
