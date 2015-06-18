@@ -92,6 +92,35 @@ enum assignment_role {
     no_role
 };
 
+enum thermalization_stage {
+    initial_stage,
+    lower_stage,
+    upper_stage,
+    convergence_stage,
+    tempering_stage,
+    final_stage,
+    thermalized
+};
+
+struct thermalization_state {
+    thermalization_stage stage;
+    int sweeps;
+    void set_stage (thermalization_stage s) {
+        stage = s;
+        sweeps = 0;
+    }
+    bool in_logging_stage () {
+        switch (stage) {
+            case lower_stage:
+            case upper_stage:
+            case convergence_stage:
+                return true;
+            default:
+                return false;
+        }
+    } 
+};
+
 struct bond_operator {
     operator_type type  : 4;
     unsigned short bond : 12;
@@ -217,6 +246,20 @@ union list_position {
 
 const list_position invalid_pos = list_position(bottom_left, -1);
 
+struct fourier_mode {
+    double q;
+    double n_q_re;
+    double n_q_im;
+    double s_q_re;
+    double s_q_im;
+    double sum_n_q_re;
+    double sum_n_q_im;
+    double sum_s_q_re;
+    double sum_s_q_im;
+    vector<double> cos_q;
+    vector<double> sin_q;
+};
+
 #ifndef NDEBUG
 template class vector<int>;
 template class vector<double>;
@@ -225,14 +268,16 @@ template class vector<bond_operator>;
 template class vector<lock_flag>;
 template class vector<list_position>;
 template class vector<operator_type>;
+template class vector<fourier_mode>;
 #endif
 
 class mc {
 private:
     uint M;
     uint Np;
+    uint N_tau;
     uint L;
-    double T;
+    double beta, init_beta, temp_beta, final_beta;
     uint N_el_up, N_el_down;
     double enlargement_factor;
     double U;
@@ -248,8 +293,11 @@ private:
 #endif
     double delta;
     double epsilon;
-    double q_S, q_chi;
-    uint therm, total_therm;
+    double q_S;
+    int matsubara;
+    uint therm;
+    uint tempering_therm;
+    double tempering_exp;
     vector<el_state> state;
     vector<int> occ;
     vector<bond_operator> sm;
@@ -257,6 +305,7 @@ private:
     uint init_n_max;
     uint loop_term;
     uint n;
+    uint n_hop;
     double vtx_visited;
     uint N_loop;
     bool dublon_rejected;
@@ -268,11 +317,15 @@ private:
     double avg_worm_len;
     uint worm_len_sample_size;
     bool mu_adjust;
-    double mu_adjust_range;
-    int mu_adjust_N;
     int mu_adjust_therm;
     int mu_adjust_sweep;
-    int mu_index;
+    double mu_adjust_range;
+    double mu_adjust_tol;
+    bool mus_file;
+    thermalization_state therm_state;
+    bool calc_dyn;
+    uint bin_length;
+    uint thermlog_interval;
 
     // vertex/assignment classification
     vector<assignment_role> role;
@@ -291,16 +344,16 @@ private:
     vector<list_position> link;
     vector<list_position> first;
     vector<list_position> last;
-    vector<int> sum_n, sum_s, sum_nn, sum_ss, sum_m;
     vector<double> S_rho_r, S_sigma_r;
-    vector<double> chi_rho_r, chi_sigma_r;
-    vector<double> mean_m;
+    vector<double> C_rho_q, C_sigma_q;
+    vector<double> tau;
+    vector<int> n_p, s_p;
     vector<double> cos_q_S;
-    vector<double> sin_q_S;
-    vector<double> cos_q_chi;
-    vector<double> sin_q_chi;
-    vector<double> mus;
-    vector<double> N_mus;
+    vector<fourier_mode> ns_q;
+    double lower_mu, upper_mu;
+    double lower_N, upper_N;
+    int N_mu;
+    stringstream mu_data, bisection_protocol, thermlog;
 
     inline vertex diag_vertex_at_bond (vector<el_state>& state,
                                        unsigned short b) {
@@ -317,7 +370,7 @@ private:
     void init_assignments();
     void init_vertices();
 
-public:    
+public:
     parser param;
 #ifdef MCL_PT
     vector<measurements> measure;

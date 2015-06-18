@@ -1,6 +1,7 @@
 DEFINES+= -DMCL_DUMP_BUFFER=0
 DEFINES+= -DMCL_MEASUREMENTS_APPEND=0
 DEFINES+= -DMCL_MCL_RNG_MT
+DEFINES+= -DMEASURE_KIN_ENERGY
 
 OBJS_MPI = dump.mpi.o parser.mpi.o measurements.mpi.o evalable.mpi.o observable.mpi.o random.mpi.o mc.mpi.o main.mpi.o runner.mpi.o
 OBJS_SINGLE = dump.single.o parser.single.o measurements.single.o evalable.single.o observable.single.o random.single.o mc.single.o main.single.o runner_single.single.o
@@ -23,7 +24,7 @@ CFLAGS_SINGLE  = $(CFLAGS) $(DEFINES_SINGLE)
 CFLAGS_PT  = $(CFLAGS) $(DEFINES_PT)
 
 INCLUDE = -I$(MCLL) -I$(APPMCLL) 
-LDFLAGS = -lgsl -lgslcblas -lm
+LDFLAGS = -lm
 
 RM = /bin/rm -f
 
