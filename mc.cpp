@@ -1197,9 +1197,9 @@ void mc :: init() {
     sm.resize(M, identity);
 
     // read mu value from database if available & desired
-    if (mus_file) {
 #ifdef MCL_PT
-        muvec.resize(gvec.size());
+    muvec.resize(gvec.size());
+    if (mus_file) {
         for (uint i = 0; i < gvec.size(); ++i) {
             stringstream fname;
             fname << "../mus/" << setprecision(4) << U << "_" << gvec[i] << "_"
@@ -1211,7 +1211,9 @@ void mc :: init() {
                 muvec[i] = default_mu(U, gvec[i], omega);
             }
         }
+    }
 #else
+    if (mus_file) {
         stringstream fname;
         fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega
               << ".mu";
@@ -1219,8 +1221,8 @@ void mc :: init() {
         if (fstr.is_open()) {
             fstr >> mu;
         }
-#endif
     }
+#endif
 
     // set up adjustment of mu if desired
     if (mu_adjust) {
