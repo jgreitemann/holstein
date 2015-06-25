@@ -26,7 +26,7 @@ void bubble_sort_perm (int *a, int *p, uint k) {
     }
 }
 
-double default_mu(double U, double g, double omega) {
+double default_mu(double g, double omega) {
     return g*g/omega;
 }
 
@@ -52,7 +52,7 @@ mc :: mc (string dir) {
 #else
     g = param.value_or_default<double>("G", 0.);
 #endif
-    mu = param.value_or_default<double>("MU", g*g/omega);
+    mu = param.value_or_default<double>("MU", default_mu(g, omega));
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     calc_dyn = param.value_or_default<int>("DYNAMICAL_CORRELATIONS", 1);
     bin_length = param.value_or_default<int>("BINLENGTH", 1);
@@ -1208,8 +1208,12 @@ void mc :: init() {
             if (fstr.is_open()) {
                 fstr >> muvec[i];
             } else {
-                muvec[i] = default_mu(U, gvec[i], omega);
+                muvec[i] = default_mu(gvec[i], omega);
             }
+        }
+    } else {
+        for (uint i = 0; i < gvec.size(); ++i) {
+            muvec[i] = default_mu(gvec[i], omega);
         }
     }
 #else
