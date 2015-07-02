@@ -33,8 +33,7 @@ mc :: mc (string dir) {
     L = param.value_or_default<int>("L", 10);
     final_beta = param.value_or_default<double>("BETA", L);
     init_beta = param.value_or_default<double>("INIT_BETA", final_beta);
-    temp_beta = param.value_or_default<double>("TEMP_BETA", final_beta);
-    beta = final_beta;
+    beta = init_beta;
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
@@ -330,7 +329,7 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (temp_beta-init_beta)
+            beta = init_beta + (final_beta-init_beta)
                    * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
             if (therm_state.sweeps == tempering_therm) {
                 therm_state.set_stage(final_stage);
