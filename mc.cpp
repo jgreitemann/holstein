@@ -31,8 +31,10 @@ mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
+    bdoub_level = param.value_or_default<int>("BETA_DOUBLING_LEVEL", 0);
     final_beta = param.value_or_default<double>("BETA", L);
-    init_beta = param.value_or_default<double>("INIT_BETA", final_beta);
+    init_beta = param.value_or_default<double>("INIT_BETA",
+                                        final_beta * pow(0.5, bdoub_level));
     beta = init_beta;
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
@@ -50,6 +52,7 @@ mc :: mc (string dir) {
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
+    bdoub_therm = param.value_or_default<int>("BETA_DOUBLING_THERM", therm);
     tempering_therm = param.value_or_default<int>("TEMPERING_THERM", 0);
     tempering_exp = param.value_or_default<int>("TEMPERING_EXP", 1.);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -267,7 +270,8 @@ void mc :: do_update() {
             beta = init_beta;
             if (therm_state.sweeps == therm) {
                 N_loop = (uint)(vtx_visited / avg_worm_len * M);
-                therm_state.set_stage(mu_adjust ? lower_stage : tempering_stage);
+                therm_state.set_stage(mu_adjust ? lower_stage
+                                                : bdoub_therm_stage);
                 N_mu = 0;
             }
             break;
@@ -329,16 +333,16 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (final_beta-init_beta)
+            beta = init_beta + (final_beta*pow(0.5, bdoub_level) - init_beta)
                    * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
             if (therm_state.sweeps == tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
             break;
         case final_stage:
-            beta = final_beta;
+            beta = final_beta * pow(0.5, bdoub_level);
             if (therm_state.sweeps == therm) {
-                therm_state.set_stage(thermalized);
+                therm_state.set_stage(bdoub_therm_stage);
                 if (!mus_file)
                     break;
                 stringstream fname;
@@ -358,7 +362,31 @@ void mc :: do_update() {
                 }
             }
             break;
+        case bdoub_therm_stage:
+            beta = final_beta * pow(0.5, bdoub_level);
+            if (therm_state.sweeps == 0) {
+                if (bdoub_therm == 0 || bdoub_level <= 0) {
+                    therm_state.set_stage(thermalized);
+                    break;
+                }
+                // append operator string to itself
+                sm.resize(2 * M);
+                for (uint i = 0; i < M; ++i) {
+                    sm[i+M] = sm[i];
+                }
+                M *= 2;
+                n *= 2;
+                n_hop *= 2;
+                --bdoub_level;
+                beta = final_beta * pow(0.5, bdoub_level);
+            }
+            if (therm_state.sweeps == bdoub_therm) {
+                therm_state.set_stage(bdoub_level > 0 ? bdoub_therm_stage
+                                                      : thermalized);
+            }
+            break;
         case thermalized:
+            beta = final_beta;
             break;
     }
 
@@ -1207,6 +1235,7 @@ void mc :: write(string dir) {
         string thermlog_str(thermlog.str());
         d.write(thermlog_str);
     }
+    d.write(bdoub_level);
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -1249,6 +1278,7 @@ bool mc :: read(string dir) {
             d.read(thermlog_str);
             thermlog << thermlog_str;
         }
+        d.read(bdoub_level);
         d.close();
         recalc_directed_loop_probs();
         return true;

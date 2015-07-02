@@ -98,6 +98,7 @@ enum thermalization_stage {
     upper_stage,
     convergence_stage,
     tempering_stage,
+    bdoub_therm_stage,
     final_stage,
     thermalized
 };
@@ -290,6 +291,8 @@ private:
     int matsubara;
     uint therm;
     uint tempering_therm;
+    int bdoub_level;
+    uint bdoub_therm;
     double tempering_exp;
     vector<el_state> state;
     vector<int> occ;
