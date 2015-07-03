@@ -268,7 +268,7 @@ void mc :: do_update() {
     switch (therm_state.stage) {
         case initial_stage:
             beta = init_beta;
-            if (therm_state.sweeps == therm) {
+            if (therm_state.sweeps >= therm) {
                 N_loop = (uint)(vtx_visited / avg_worm_len * M);
                 therm_state.set_stage(mu_adjust ? lower_stage
                                                 : bdoub_therm_stage);
@@ -277,7 +277,7 @@ void mc :: do_update() {
             break;
         case lower_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 lower_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << lower_N << endl;
                 if (lower_N < N_el_up+N_el_down) {
@@ -294,7 +294,7 @@ void mc :: do_update() {
             break;
         case upper_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 upper_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << upper_N << endl;
                 if (upper_N > N_el_up+N_el_down) {
@@ -311,7 +311,7 @@ void mc :: do_update() {
             break;
         case convergence_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 double center_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << center_N << endl;
                 if (center_N < N_el_up+N_el_down) {
@@ -335,13 +335,13 @@ void mc :: do_update() {
         case tempering_stage:
             beta = init_beta + (final_beta*pow(0.5, bdoub_level) - init_beta)
                    * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
-            if (therm_state.sweeps == tempering_therm) {
+            if (therm_state.sweeps >= tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
             break;
         case final_stage:
             beta = final_beta * pow(0.5, bdoub_level);
-            if (therm_state.sweeps == therm) {
+            if (therm_state.sweeps >= therm) {
                 therm_state.set_stage(bdoub_therm_stage);
                 if (!mus_file)
                     break;
