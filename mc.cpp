@@ -364,8 +364,8 @@ void mc :: do_update() {
             break;
         case bdoub_therm_stage:
             beta = final_beta * pow(0.5, bdoub_level);
-            if (therm_state.sweeps == 0) {
-                if (bdoub_therm == 0 || bdoub_level <= 0) {
+            if (therm_state.sweeps == 1) {
+                if (bdoub_therm <= 1 || bdoub_level <= 0) {
                     therm_state.set_stage(thermalized);
                     break;
                 }
