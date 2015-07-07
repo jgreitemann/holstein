@@ -277,7 +277,7 @@ private:
     uint Np;
     uint N_tau;
     uint L;
-    double beta, init_beta, temp_beta, final_beta;
+    double beta, init_beta, final_beta;
     uint N_el_up, N_el_down;
     double enlargement_factor;
     double U;

@@ -37,8 +37,7 @@ mc :: mc (string dir) {
     L = param.value_or_default<int>("L", 10);
     final_beta = param.value_or_default<double>("BETA", L);
     init_beta = param.value_or_default<double>("INIT_BETA", final_beta);
-    temp_beta = param.value_or_default<double>("TEMP_BETA", final_beta);
-    beta = final_beta;
+    beta = init_beta;
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
@@ -287,7 +286,7 @@ void mc :: do_update() {
     switch (therm_state.stage) {
         case initial_stage:
             beta = init_beta;
-            if (therm_state.sweeps == therm) {
+            if (therm_state.sweeps >= therm) {
                 N_loop = (uint)(vtx_visited / avg_worm_len * M);
                 therm_state.set_stage(mu_adjust ? lower_stage : tempering_stage);
                 N_mu = 0;
@@ -295,7 +294,7 @@ void mc :: do_update() {
             break;
         case lower_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 lower_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << lower_N << endl;
                 if (lower_N < N_el_up+N_el_down) {
@@ -312,7 +311,7 @@ void mc :: do_update() {
             break;
         case upper_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 upper_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << upper_N << endl;
                 if (upper_N > N_el_up+N_el_down) {
@@ -329,7 +328,7 @@ void mc :: do_update() {
             break;
         case convergence_stage:
             beta = init_beta;
-            if (therm_state.sweeps == mu_adjust_therm+mu_adjust_sweep) {
+            if (therm_state.sweeps >= mu_adjust_therm+mu_adjust_sweep) {
                 double center_N = 1. * N_mu / mu_adjust_sweep;
                 mu_data << mu << " " << center_N << endl;
                 if (center_N < N_el_up+N_el_down) {
@@ -351,15 +350,15 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (temp_beta-init_beta)
+            beta = init_beta + (final_beta-init_beta)
                    * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
-            if (therm_state.sweeps == tempering_therm) {
+            if (therm_state.sweeps >= tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
             break;
         case final_stage:
             beta = final_beta;
-            if (therm_state.sweeps == therm) {
+            if (therm_state.sweeps >= therm) {
                 therm_state.set_stage(thermalized);
                 if (!mus_file)
                     break;
