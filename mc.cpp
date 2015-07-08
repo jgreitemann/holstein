@@ -35,8 +35,10 @@ mc :: mc (string dir) {
     // initialize job parameters
     param_init(dir);
     L = param.value_or_default<int>("L", 10);
+    bdoub_level = param.value_or_default<int>("BETA_DOUBLING_LEVEL", 0);
     final_beta = param.value_or_default<double>("BETA", L);
-    init_beta = param.value_or_default<double>("INIT_BETA", final_beta);
+    init_beta = param.value_or_default<double>("INIT_BETA",
+                                        final_beta * pow(0.5, bdoub_level));
     beta = init_beta;
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
@@ -60,6 +62,7 @@ mc :: mc (string dir) {
     matsubara = param.value_or_default<int>("MATSUBARA", 0);
     init_n_max = param.value_or_default<int>("INIT_N_MAX", 100);
     therm = param.value_or_default<int>("THERMALIZATION", 50000);
+    bdoub_therm = param.value_or_default<int>("BETA_DOUBLING_THERM", therm);
     tempering_therm = param.value_or_default<int>("TEMPERING_THERM", 0);
     tempering_exp = param.value_or_default<int>("TEMPERING_EXP", 1.);
     loop_term = param.value_or_default<int>("LOOP_TERMINATION", 100);
@@ -288,7 +291,8 @@ void mc :: do_update() {
             beta = init_beta;
             if (therm_state.sweeps >= therm) {
                 N_loop = (uint)(vtx_visited / avg_worm_len * M);
-                therm_state.set_stage(mu_adjust ? lower_stage : tempering_stage);
+                therm_state.set_stage(mu_adjust ? lower_stage
+                                                : bdoub_therm_stage);
                 N_mu = 0;
             }
             break;
@@ -350,16 +354,16 @@ void mc :: do_update() {
             }
             break;
         case tempering_stage:
-            beta = init_beta + (final_beta-init_beta)
+            beta = init_beta + (final_beta*pow(0.5, bdoub_level) - init_beta)
                    * pow(1.*therm_state.sweeps/tempering_therm, tempering_exp);
             if (therm_state.sweeps >= tempering_therm) {
                 therm_state.set_stage(final_stage);
             }
             break;
         case final_stage:
-            beta = final_beta;
+            beta = final_beta * pow(0.5, bdoub_level);
             if (therm_state.sweeps >= therm) {
-                therm_state.set_stage(thermalized);
+                therm_state.set_stage(bdoub_therm_stage);
                 if (!mus_file)
                     break;
                 stringstream fname;
@@ -379,7 +383,31 @@ void mc :: do_update() {
                 }
             }
             break;
+        case bdoub_therm_stage:
+            beta = final_beta * pow(0.5, bdoub_level);
+            if (therm_state.sweeps == 1) {
+                if (bdoub_therm <= 1 || bdoub_level <= 0) {
+                    therm_state.set_stage(thermalized);
+                    break;
+                }
+                // append operator string to itself
+                sm.resize(2 * M);
+                for (uint i = 0; i < M; ++i) {
+                    sm[i+M] = sm[i];
+                }
+                M *= 2;
+                n *= 2;
+                n_hop *= 2;
+                --bdoub_level;
+                beta = final_beta * pow(0.5, bdoub_level);
+            }
+            if (therm_state.sweeps == bdoub_therm) {
+                therm_state.set_stage(bdoub_level > 0 ? bdoub_therm_stage
+                                                      : thermalized);
+            }
+            break;
         case thermalized:
+            beta = final_beta;
             break;
     }
 
@@ -1313,6 +1341,7 @@ void mc :: write(string dir) {
 #ifdef MCL_PT
     d.write(muvec);
 #endif
+    d.write(bdoub_level);
     d.close();
     seed_write(dir + "seed");
     dir += "bins";
@@ -1358,6 +1387,7 @@ bool mc :: read(string dir) {
 #ifdef MCL_PT
         d.read(muvec);
 #endif
+        d.read(bdoub_level);
         d.close();
 #ifndef MCL_PT
         recalc_directed_loop_probs();
@@ -1561,9 +1591,8 @@ void mc :: change_parameter(int i) {
 }
 
 bool mc :: request_global_update() {
-    return    (   therm_state.stage == final_stage
-               || therm_state.stage == thermalized)
-           && (therm_state.sweeps % pt_spacing == 0);
+    return    beta == final_beta
+           && therm_state.sweeps % pt_spacing == 0;
 }
 
 double mc :: get_weight(int f) {
