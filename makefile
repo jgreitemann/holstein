@@ -8,6 +8,7 @@ OBJS_SINGLE = dump.single.o parser.single.o measurements.single.o evalable.singl
 DEFINES_SINGLE = $(DEFINES) -DMCL_SINGLE
 OBJS_PT = dump.pt.o parser.pt.o measurements.pt.o evalable.pt.o observable.pt.o random.pt.o mc.pt.o main.pt.o runner_pt.pt.o
 DEFINES_PT = -DMCL_PT
+OBJS_MERGE = dump.single.o parser.single.o measurements.single.o evalable.single.o observable.single.o random.single.o mc.single.o merge.single.o runner_single.single.o
 
 MCLL  = $(MC_CODE_DIR)/load_leveller/trunk
 APPMCLL = $(MC_CODE_DIR)/holstein
@@ -57,11 +58,14 @@ mc_pt : $(OBJS_PT)
 %.pt.o : $(MCLL)/%.cpp
 	$(CC_PT) -c $(CFLAGS_PT) $(INCLUDE) $< -o $@
 
+merge: $(OBJS_MERGE)
+	$(CC_SINGLE) $(LDFLAGS) -o $@ $(OBJS_MERGE)
+
 clean:
-	$(RM) mc mc_single mc_pt $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT)
+	$(RM) mc mc_single mc_pt merge $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT) $(OBJS_MERGE)
 
 cleano:
-	$(RM) $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT)
+	$(RM) $(OBJS_MPI) $(OBJS_SINGLE) $(OBJS_PT) $(OBJS_MERGE)
 
 
 
