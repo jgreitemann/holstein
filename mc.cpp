@@ -416,7 +416,7 @@ void mc :: do_update() {
         }
 
         // phononic diagonal update
-        if (sm[i] == identity) {
+        if (Np && sm[i] == identity) {
             bond_operator b;
             b.type = phonon_diag;
             b.bond = random0N(NB)+1;
@@ -448,6 +448,8 @@ void mc :: do_update() {
                 case down_hopping:
                     break;
                 default:
+                    if (!Np)
+                        break;
                     unsigned short site;
                     switch (b.type) {
                         case electron_diag:
@@ -518,7 +520,7 @@ void mc :: do_update() {
     }
 
     // subsequence phonon update
-    for (uint s = 0; s < L; ++s) {
+    for (uint s = 0; Np && s < L; ++s) {
         vector<subseq_node>::iterator i1, i2;
         if (subseq[s].size() < 2)
             continue;
