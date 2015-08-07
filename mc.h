@@ -19,6 +19,7 @@
 #include "random.h"
 #include "parser.h"
 #include "types.h"
+#include <endian.hpp>
 
 using namespace std;
 
@@ -136,12 +137,24 @@ struct bond_operator {
 const bond_operator identity = {electron_diag, 0};
 
 union vertex {
+#ifdef BOOST_BIG_ENDIAN
+    struct {
+        el_state top_left     : 2;
+        el_state top_right    : 2;
+        el_state bottom_right : 2;
+        el_state bottom_left  : 2;
+    };
+#else
+#ifndef BOOST_LITTLE_ENDIAN
+#warning Endianness unknown, defaulting for little endian!
+#endif
     struct {
         el_state bottom_left  : 2;
         el_state bottom_right : 2;
         el_state top_right    : 2;
         el_state top_left     : 2;
     };
+#endif
     byte int_repr;
     bool operator== (const vertex& other) {
         return int_repr == other.int_repr;
@@ -189,12 +202,24 @@ union vertex {
 };
 
 union assignment {
+#ifdef BOOST_BIG_ENDIAN
+    struct {
+        worm_type worm : 4;
+        leg exit_leg   : 2;
+        leg ent_leg    : 2;
+        vertex vtx;
+    };
+#else
+#ifndef BOOST_LITTLE_ENDIAN
+#warning Endianness unknown, defaulting for little endian!
+#endif
     struct {
         vertex vtx;
         leg ent_leg    : 2;
         leg exit_leg   : 2;
         worm_type worm : 4;
     };
+#endif
     unsigned short int_repr;
     bool operator== (const assignment& other) {
         return int_repr == other.int_repr;
@@ -230,10 +255,20 @@ enum lock_flag {
 };
 
 union list_position {
+#ifdef BOOST_BIG_ENDIAN
+    struct {
+        int index   : 30;
+        leg vtx_leg : 2;
+    };
+#else
+#ifndef BOOST_LITTLE_ENDIAN
+#warning Endianness unknown, defaulting for little endian!
+#endif
     struct {
         leg vtx_leg : 2;
         int index   : 30;
     };
+#endif
     int int_repr;
     list_position() {}
     list_position(leg vtx_leg, int index) : vtx_leg(vtx_leg), index(index) {}
