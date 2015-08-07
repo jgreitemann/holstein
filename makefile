@@ -31,7 +31,7 @@ RM = /bin/rm -f
 all: mc mc_single cleano
 
 mc : $(OBJS_MPI)
-	$(LD_MPI) $(LDFLAGS) -o $@ $(OBJS_MPI)
+	$(LD_MPI) -o $@ $(OBJS_MPI) $(LDFLAGS)
 
 %.mpi.o : $(APPMCLL)/%.cpp
 	$(CC_MPI) -c $(CFLAGS_MPI) $(INCLUDE) $< -o $@
@@ -40,7 +40,7 @@ mc : $(OBJS_MPI)
 	$(CC_MPI) -c $(CFLAGS_MPI) $(INCLUDE) $< -o $@
 
 mc_single : $(OBJS_SINGLE)
-	$(LD_SINGLE) $(LDFLAGS) -o $@ $(OBJS_SINGLE)
+	$(LD_SINGLE) -o $@ $(OBJS_SINGLE) $(LDFLAGS)
 
 %.single.o : $(APPMCLL)/%.cpp
 	$(CC_SINGLE) -c $(CFLAGS_SINGLE) $(INCLUDE) $< -o $@
@@ -49,7 +49,7 @@ mc_single : $(OBJS_SINGLE)
 	$(CC_SINGLE) -c $(CFLAGS_SINGLE) $(INCLUDE) $< -o $@
 
 mc_pt : $(OBJS_PT)
-	$(LD_PT) $(LDFLAGS) -o $@ $(OBJS_PT)
+	$(LD_PT) -o $@ $(OBJS_PT) $(LDFLAGS)
 
 %.pt.o : $(APPMCLL)/%.cpp
 	$(CC_PT) -c $(CFLAGS_PT) $(INCLUDE) $< -o $@
