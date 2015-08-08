@@ -26,6 +26,10 @@ void bubble_sort_perm (int *a, int *p, uint k) {
     }
 }
 
+double default_mu(double g, double omega) {
+    return g*g/omega;
+}
+
 mc :: mc (string dir) {
     vector<int> qvec;
     // initialize job parameters
@@ -39,11 +43,17 @@ mc :: mc (string dir) {
     epsilon = param.value_or_default<double>("EPSILON", 0.01);
     N_el_up = param.value_or_default<int>("N_el_up", L/2);
     N_el_down = param.value_or_default<int>("N_el_down", N_el_up);
-    a = param.value_or_default<double>("A", 1.3);
+    enlargement_factor = param.value_or_default<double>("ENLARGEMENT_FACTOR",
+                                                        1.3);
     U = param.value_or_default<double>("U", 0.);
     omega = param.value_or_default<double>("OMEGA", 1.);
+#ifdef MCL_PT
+    gvec = param.return_vector<double>("@G");
+    pt_spacing = param.value_or_default<int>("PT_SPACING", 100);
+#else
     g = param.value_or_default<double>("G", 0.);
-    mu = param.value_or_default<double>("MU", g*g/omega);
+#endif
+    mu = param.value_or_default<double>("MU", default_mu(g, omega));
     q_S = param.value_or_default<double>("Q_S", 2*M_PI/L);
     calc_dyn = param.value_or_default<int>("DYNAMICAL_CORRELATIONS", 1);
     bin_length = param.value_or_default<int>("BINLENGTH", 1);
@@ -68,6 +78,10 @@ mc :: mc (string dir) {
     thermlog_interval = param.value_or_default<int>("THERMLOG_INTERVAL", 0);
     assert(N_el_up <= L && N_el_down <= L);
     assert(N_el_up % 2 == pbc && N_el_down % 2 == pbc);
+#ifdef MCL_PT
+    // mu adjustment must not be used in conjunction with PT
+    assert(!mu_adjust);
+#endif
 
     // initialize vectors
     init_vertices();
@@ -85,6 +99,10 @@ mc :: mc (string dir) {
     C_rho_q.resize(qvec.size());
     C_sigma_q.resize(qvec.size());
     cos_q_S.resize(L);
+#ifdef MCL_PT
+    other_weight.resize(256);
+    measure.resize(gvec.size());
+#endif
 
     // calculate trigonometric factors for Fourier transforms
     for (uint s = 0; s < L; ++s)
@@ -106,9 +124,8 @@ mc :: mc (string dir) {
     }
 }
 
-void mc :: recalc_directed_loop_probs() {
+void mc :: recalc_weights(vector<double> &weight, double mu, double &delta) {
     fill(weight.begin(), weight.end(), 0.);
-    fill(prob.begin(), prob.end(), 0.);
 
     // define weights
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
@@ -141,7 +158,6 @@ void mc :: recalc_directed_loop_probs() {
                                     {W_1m, W_10, W_invalid},// 8
                                     {W_2m, W_2p, W_invalid} // 9
                                   };
-    double a[no_role][N_GROUP];
     for (uint gr = 0; gr < 10; ++gr) {
         if (groups[gr][2] == W_invalid) {   // 2x2 group
             bool bigger = W[groups[gr][0]] < W[groups[gr][1]];
@@ -188,6 +204,11 @@ void mc :: recalc_directed_loop_probs() {
     for (int vtx_i = 0; vtx_i < 256; ++vtx_i)
         if (v_type[vtx_i] != W_invalid)
             weight[vtx_i] = W[v_type[vtx_i]];
+}
+
+void mc :: recalc_directed_loop_probs() {
+    recalc_weights(weight, mu, delta);
+    fill(prob.begin(), prob.end(), 0.);
 
     // calculate transition probabilities
     assignment assign;
@@ -619,8 +640,8 @@ void mc :: do_update() {
     }
 
     // adjust M during thermalization
-    if (!is_thermalized() && a*n > M) {
-        M = a*n;
+    if (!is_thermalized() && enlargement_factor*n > M) {
+        M = enlargement_factor*n;
         sm.resize(M, identity);
     }
     assert(n <= M); // You might need to increase "a" or the
@@ -869,10 +890,16 @@ void mc :: do_measurement() {
         N_up += state[s] == up || state[s] == dublon;
         N_down += state[s] == down || state[s] == dublon;
     }
+#ifdef MCL_PT
+    measure[myrep].add("N_up", N_up);
+    measure[myrep].add("N_down", N_down);
+    measure[myrep].add("dublon_rejection_rate", dublon_rejected);
+#else
     measure.add("N_up", N_up);
     measure.add("N_down", N_down);
     measure.add("dublon_rejection_rate", dublon_rejected);
-    
+#endif
+
     // skip measurement if particle numbers are not right
     if (N_up != N_el_up || N_down != N_el_down)
         return;
@@ -882,9 +909,16 @@ void mc :: do_measurement() {
                     + 2*mu*(L-N_el_up-N_el_down);
 
     // add data to measurement
+#ifdef MCL_PT
+    measure[myrep].add("Energy", energy);
+    #ifdef MEASURE_KIN_ENERGY
+    measure[myrep].add("kinetic_Energy", -1./beta*n_hop);
+    #endif
+#else
     measure.add("Energy", energy);
-#ifdef MEASURE_KIN_ENERGY
+    #ifdef MEASURE_KIN_ENERGY
     measure.add("kinetic_Energy", -1./beta*n_hop);
+    #endif
 #endif
 
     // calculate equal-time real space correlation functions (at p = 0)
@@ -902,7 +936,11 @@ void mc :: do_measurement() {
         }
         m += occ[j];
     }
+#ifdef MCL_PT
+    measure[myrep].add("ph_density", 1.*m/L);
+#else
     measure.add("ph_density", 1.*m/L);
+#endif
     for (uint r = 0; r < L; ++r) {
         double sum_nn = 0, sum_ss = 0;
         for (uint j = 0; j < L; ++j) {
@@ -920,8 +958,13 @@ void mc :: do_measurement() {
         S_rho_q += cos_q_S[s] * S_rho_r[s];
         S_sigma_q += cos_q_S[s] * S_sigma_r[s];
     }
+#ifdef MCL_PT
+    measure[myrep].add("S_rho_q", S_rho_q);
+    measure[myrep].add("S_sigma_q", S_sigma_q);
+#else
     measure.add("S_rho_q", S_rho_q);
     measure.add("S_sigma_q", S_sigma_q);
+#endif
 
     double omega_mats;
     if (calc_dyn) {
@@ -1077,12 +1120,21 @@ void mc :: do_measurement() {
                                   + 1./(n+1)/(n+1) * sum_n_staggered_sq);
     double chi_sigma_pi = beta/L * (1./n/(n+1) * sum_s_staggered * sum_s_staggered
                                     + 1./(n+1)/(n+1) * sum_s_staggered_sq);
+#ifdef MCL_PT
+    measure[myrep].add("chi_rho_pi", chi_rho_pi);
+    measure[myrep].add("chi_sigma_pi", chi_sigma_pi);
+
+    // measure equal-time real space correlations
+    measure[myrep].add("S_rho_r", S_rho_r);
+    measure[myrep].add("S_sigma_r", S_sigma_r);
+#else
     measure.add("chi_rho_pi", chi_rho_pi);
     measure.add("chi_sigma_pi", chi_sigma_pi);
 
     // measure equal-time real space correlations
     measure.add("S_rho_r", S_rho_r);
     measure.add("S_sigma_r", S_sigma_r);
+#endif
 
     // measure dynamical correlations
     if (calc_dyn) {
@@ -1114,9 +1166,13 @@ void mc :: do_measurement() {
                           * (qit->sum_s_q_re * qit->sum_s_q_re
                              + qit->sum_s_q_im * qit->sum_s_q_im);
         }
-
+#ifdef MCL_PT
+        measure[myrep].add("C_rho_q", C_rho_q);
+        measure[myrep].add("C_sigma_q", C_sigma_q);
+#else
         measure.add("C_rho_q", C_rho_q);
         measure.add("C_sigma_q", C_sigma_q);
+#endif
     }
 }
 
@@ -1162,7 +1218,7 @@ void mc :: init() {
 
     n = 0;
     n_hop = 0;
-    M = (uint)(a * init_n_max);
+    M = (uint)(enlargement_factor * init_n_max);
     dublon_rejected = true;
     avg_worm_len = 0;
     worm_len_sample_size = 0;
@@ -1170,6 +1226,26 @@ void mc :: init() {
     sm.resize(M, identity);
 
     // read mu value from database if available & desired
+#ifdef MCL_PT
+    muvec.resize(gvec.size());
+    if (mus_file) {
+        for (uint i = 0; i < gvec.size(); ++i) {
+            stringstream fname;
+            fname << "../mus/" << setprecision(4) << U << "_" << gvec[i] << "_"
+                  << omega << ".mu";
+            ifstream fstr(fname.str().c_str());
+            if (fstr.is_open()) {
+                fstr >> muvec[i];
+            } else {
+                muvec[i] = default_mu(gvec[i], omega);
+            }
+        }
+    } else {
+        for (uint i = 0; i < gvec.size(); ++i) {
+            muvec[i] = default_mu(gvec[i], omega);
+        }
+    }
+#else
     if (mus_file) {
         stringstream fname;
         fname << "../mus/" << setprecision(4) << U << "_" << g << "_" << omega
@@ -1179,6 +1255,7 @@ void mc :: init() {
             fstr >> mu;
         }
     }
+#endif
 
     // set up adjustment of mu if desired
     if (mu_adjust) {
@@ -1186,17 +1263,42 @@ void mc :: init() {
         upper_mu = mu + 0.5*mu_adjust_range;
         mu = lower_mu;
     }
+
     therm_state.set_stage(initial_stage);
+#ifndef MCL_PT
     recalc_directed_loop_probs();
+#endif
 
     // add observables
+#ifdef MCL_PT
+    for (uint i = 0; i < gvec.size(); ++i) {
+        measure[i].add_observable("N_up");
+        measure[i].add_observable("N_down");
+        measure[i].add_observable("dublon_rejection_rate");
+        measure[i].add_observable("Energy");
+    #ifdef MEASURE_KIN_ENERGY
+        measure[i].add_observable("kinetic_Energy");
+    #endif
+        measure[i].add_observable("ph_density");
+        measure[i].add_observable("S_rho_q");
+        measure[i].add_observable("S_sigma_q");
+        measure[i].add_observable("chi_rho_pi");
+        measure[i].add_observable("chi_sigma_pi");
+        measure[i].add_vectorobservable("S_rho_r", L, bin_length);
+        measure[i].add_vectorobservable("S_sigma_r", L, bin_length);
+        if (calc_dyn) {
+            measure[i].add_vectorobservable("C_rho_q", ns_q.size(), bin_length);
+            measure[i].add_vectorobservable("C_sigma_q", ns_q.size(), bin_length);
+        }
+    }
+#else
     measure.add_observable("N_up");
     measure.add_observable("N_down");
     measure.add_observable("dublon_rejection_rate");
     measure.add_observable("Energy");
-#ifdef MEASURE_KIN_ENERGY
+    #ifdef MEASURE_KIN_ENERGY
     measure.add_observable("kinetic_Energy");
-#endif
+    #endif
     measure.add_observable("ph_density");
     measure.add_observable("S_rho_q");
     measure.add_observable("S_sigma_q");
@@ -1208,6 +1310,7 @@ void mc :: init() {
         measure.add_vectorobservable("C_rho_q", ns_q.size(), bin_length);
         measure.add_vectorobservable("C_sigma_q", ns_q.size(), bin_length);
     }
+#endif
 }
 
 void mc :: write(string dir) {
@@ -1237,6 +1340,9 @@ void mc :: write(string dir) {
         string thermlog_str(thermlog.str());
         d.write(thermlog_str);
     }
+#ifdef MCL_PT
+    d.write(muvec);
+#endif
     d.write(bdoub_level);
     d.close();
     seed_write(dir + "seed");
@@ -1280,20 +1386,34 @@ bool mc :: read(string dir) {
             d.read(thermlog_str);
             thermlog << thermlog_str;
         }
+#ifdef MCL_PT
+        d.read(muvec);
+#endif
         d.read(bdoub_level);
         d.close();
+#ifndef MCL_PT
         recalc_directed_loop_probs();
+#endif
         return true;
     }
 }
 
+#ifdef MCL_PT
+void mc :: write_output(string dir, int para) {
+#else
 void mc :: write_output(string dir) {
+#endif
     // add evalables
     ofstream f;
     f.open(dir.c_str());
     f << "PARAMETERS" << endl;
+#ifdef MCL_PT
+    param.get_all_with_one_from_specified_array("@G",para,f);
+    measure[para].get_statistics(f);
+#else
     param.get_all(f);
     measure.get_statistics(f);
+#endif
     double C = (U/4 > -abs(mu)) ? (U/4 + 2*abs(mu)) : (-U/4);
     f << "SIMULATION PROPERTIES" << endl
       << "C+delta+epsilon = " << C << " + " << delta << " + "
@@ -1455,3 +1575,70 @@ void mc :: init_vertices() {
         }
     }
 }
+
+#ifdef MCL_PT
+void mc :: change_to(int i) {
+    change_parameter(i);
+}
+
+void mc :: change_parameter(int i) {
+    myrep = i;
+    g = gvec[myrep];
+    mu = muvec[myrep];
+    recalc_directed_loop_probs();
+    if (myrep == 0)
+        label = 1;
+    else if (myrep == (int) (gvec.size() - 1))
+        label = -1;
+}
+
+bool mc :: request_global_update() {
+    return    beta == final_beta
+           && therm_state.sweeps % pt_spacing == 0;
+}
+
+double mc :: get_weight(int f) {
+    double other_delta;
+    recalc_weights(other_weight, muvec[f], other_delta);
+    double log_weight = 0.;
+    int n_phonon = 0;
+    bond_operator b;
+    vertex vtx;
+    current_state = state;
+    for (uint i = 0; i < M; ++i) {
+        if (sm[i] == identity)
+            continue;
+        b = sm[i];
+        switch (b.type) {
+            case electron_diag:
+                vtx = diag_vertex_at_bond(current_state, b.bond);
+                log_weight += log(other_weight[vtx.int_repr]
+                                  / weight[vtx.int_repr]);
+                break;
+            case up_hopping:
+                current_state[LEFT_SITE(b.bond)] =
+                    flipped_state(current_state[LEFT_SITE(b.bond)], up_worm);
+                current_state[RIGHT_SITE(b.bond)] =
+                    flipped_state(current_state[RIGHT_SITE(b.bond)], up_worm);
+                break;
+            case down_hopping:
+                current_state[LEFT_SITE(b.bond)] =
+                    flipped_state(current_state[LEFT_SITE(b.bond)], down_worm);
+                current_state[RIGHT_SITE(b.bond)] =
+                    flipped_state(current_state[RIGHT_SITE(b.bond)], down_worm);
+                break;
+            case creator_left:
+            case creator_right:
+            case annihilator_left:
+            case annihilator_right:
+                n_phonon++;
+                break;
+        }
+    }
+    return n_phonon * log(gvec[f] / g) + log_weight;
+}
+
+int mc :: get_label() {
+    return label;
+}
+#endif

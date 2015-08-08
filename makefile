@@ -6,7 +6,7 @@ DEFINES+= -DMEASURE_KIN_ENERGY
 OBJS_MPI = dump.mpi.o parser.mpi.o measurements.mpi.o evalable.mpi.o observable.mpi.o random.mpi.o mc.mpi.o main.mpi.o runner.mpi.o
 OBJS_SINGLE = dump.single.o parser.single.o measurements.single.o evalable.single.o observable.single.o random.single.o mc.single.o main.single.o runner_single.single.o
 DEFINES_SINGLE = $(DEFINES) -DMCL_SINGLE
-OBJS_PT = dump.pt.o parser.pt.o measurements.pt.o evalable.pt.o observable.pt.o random.pt.o mc.pt.o main.pt.o runner.pt.o
+OBJS_PT = dump.pt.o parser.pt.o measurements.pt.o evalable.pt.o observable.pt.o random.pt.o mc.pt.o main.pt.o runner_pt.pt.o
 DEFINES_PT = -DMCL_PT
 
 MCLL  = $(MC_CODE_DIR)/load_leveller/trunk

@@ -315,11 +315,18 @@ private:
     uint L;
     double beta, init_beta, final_beta;
     uint N_el_up, N_el_down;
-    double a;
+    double enlargement_factor;
     double U;
     double mu;
     double omega;
     double g;
+#ifdef MCL_PT
+    int label;
+    int myrep;
+    int pt_spacing;
+    vector<double> gvec;
+    vector<double> muvec;
+#endif
     double delta;
     double epsilon;
     double q_S;
@@ -341,6 +348,9 @@ private:
     uint N_loop;
     bool dublon_rejected;
     vector<double> weight;
+#ifdef MCL_PT
+    vector<double> other_weight;
+#endif
     vector<double> prob;
     double avg_worm_len;
     uint worm_len_sample_size;
@@ -362,6 +372,7 @@ private:
     vector<operator_type> op_type;
 
     // workspace variables
+    double a[no_role][N_GROUP];
     vector<vector<subseq_node> > subseq;
     vector<int> initial_Nd;
     vector<el_state> current_state;
@@ -392,12 +403,19 @@ private:
         return v;
     }
 
+    void recalc_weights(vector<double> &weight, double mu, double &delta);
     void recalc_directed_loop_probs();
     void init_assignments();
     void init_vertices();
 
 public:
     parser param;
+#ifdef MCL_PT
+    vector<measurements> measure;
+#else
+    measurements measure;
+#endif
+
     void param_init(string dir) {param.read_file(dir);}
     randomnumbergenerator *rng;
     void random_init() {
@@ -432,13 +450,26 @@ public:
     void do_measurement();
     void write(string);
     bool read(string);
+#ifdef MCL_PT
+    void write_output(string,int);
+#else
     void write_output(string);
+#endif
 
     bool is_thermalized();
-    measurements measure;    
-
+#ifdef MCL_PT
+    bool request_global_update();
+    void change_parameter(int);
+    void change_to(int);
+    double get_weight(int);
+    int get_label();
+#endif
     mc(string);
     ~mc();
 };
+
+#ifdef MCL_PT
+typedef mc mc_pt;
+#endif
 
 #endif
