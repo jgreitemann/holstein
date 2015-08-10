@@ -1003,6 +1003,7 @@ void mc :: do_measurement() {
     // initialize staggered susceptibilities 
     current_state = state;
     uint p = 0;
+    int W = 0;
     int sum_n_staggered = 0, sum_n_staggered_sq = n_staggered * n_staggered;
     int sum_s_staggered = 0, sum_s_staggered_sq = s_staggered * s_staggered;
     
@@ -1052,6 +1053,9 @@ void mc :: do_measurement() {
                         n_staggered -= 2;
                         s_staggered -= 2;
                     }
+                    if (b.bond == L) {
+                        ++W;
+                    }
                 } else {
                     if (b.bond & 1) {
                         n_staggered -= 2;
@@ -1059,6 +1063,9 @@ void mc :: do_measurement() {
                     } else {
                         n_staggered += 2;
                         s_staggered += 2;
+                    }
+                    if (b.bond == L) {
+                        --W;
                     }
                 }
                 if (calc_dyn) {
@@ -1088,6 +1095,9 @@ void mc :: do_measurement() {
                         n_staggered -= 2;
                         s_staggered += 2;
                     }
+                    if (b.bond == L) {
+                        ++W;
+                    }
                 } else {
                     if (b.bond & 1) {
                         n_staggered -= 2;
@@ -1095,6 +1105,9 @@ void mc :: do_measurement() {
                     } else {
                         n_staggered += 2;
                         s_staggered -= 2;
+                    }
+                    if (b.bond == L) {
+                        --W;
                     }
                 }
                 if (calc_dyn) {
@@ -1114,6 +1127,15 @@ void mc :: do_measurement() {
         }
         ++p;
     }
+
+    // measure winding number fluctuations
+#ifdef MCL_PT
+    measure[myrep].add("W", W);
+    measure[myrep].add("W_sq", W*W);
+#else
+    measure.add("W", W);
+    measure.add("W_sq", W*W);
+#endif
     
     // cf. [DT01]
     double chi_rho_pi = beta/L * (1./n/(n+1) * sum_n_staggered * sum_n_staggered
@@ -1280,6 +1302,8 @@ void mc :: init() {
         measure[i].add_observable("kinetic_Energy");
     #endif
         measure[i].add_observable("ph_density");
+        measure[i].add_observable("W");
+        measure[i].add_observable("W_sq");
         measure[i].add_observable("S_rho_q");
         measure[i].add_observable("S_sigma_q");
         measure[i].add_observable("chi_rho_pi");
@@ -1300,6 +1324,8 @@ void mc :: init() {
     measure.add_observable("kinetic_Energy");
     #endif
     measure.add_observable("ph_density");
+    measure.add_observable("W");
+    measure.add_observable("W_sq");
     measure.add_observable("S_rho_q");
     measure.add_observable("S_sigma_q");
     measure.add_observable("chi_rho_pi");
