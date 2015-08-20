@@ -1003,7 +1003,7 @@ void mc :: do_measurement() {
     // initialize staggered susceptibilities 
     current_state = state;
     uint p = 0;
-    int W = 0;
+    int W_up = 0, W_down = 0;
     int sum_n_staggered = 0, sum_n_staggered_sq = n_staggered * n_staggered;
     int sum_s_staggered = 0, sum_s_staggered_sq = s_staggered * s_staggered;
     
@@ -1054,7 +1054,7 @@ void mc :: do_measurement() {
                         s_staggered -= 2;
                     }
                     if (b.bond == L) {
-                        ++W;
+                        ++W_up;
                     }
                 } else {
                     if (b.bond & 1) {
@@ -1065,7 +1065,7 @@ void mc :: do_measurement() {
                         s_staggered += 2;
                     }
                     if (b.bond == L) {
-                        --W;
+                        --W_up;
                     }
                 }
                 if (calc_dyn) {
@@ -1096,7 +1096,7 @@ void mc :: do_measurement() {
                         s_staggered += 2;
                     }
                     if (b.bond == L) {
-                        ++W;
+                        ++W_down;
                     }
                 } else {
                     if (b.bond & 1) {
@@ -1107,7 +1107,7 @@ void mc :: do_measurement() {
                         s_staggered -= 2;
                     }
                     if (b.bond == L) {
-                        --W;
+                        --W_down;
                     }
                 }
                 if (calc_dyn) {
@@ -1130,11 +1130,11 @@ void mc :: do_measurement() {
 
     // measure winding number fluctuations
 #ifdef MCL_PT
-    measure[myrep].add("W", W);
-    measure[myrep].add("W_sq", W*W);
+    measure[myrep].add("W", W_up + W_down);
+    measure[myrep].add("W_sq", W_up*W_up + W_down*W_down);
 #else
-    measure.add("W", W);
-    measure.add("W_sq", W*W);
+    measure.add("W", W_up + W_down);
+    measure.add("W_sq", W_up*W_up + W_down*W_down);
 #endif
     
     // cf. [DT01]
